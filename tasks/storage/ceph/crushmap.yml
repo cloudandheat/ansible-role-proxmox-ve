@@ -1,0 +1,542 @@
+---
+- name: Modify Ceph CRUSH map
+  vars:
+    tmp_crushmap_comp: "/tmp/crushmap.compiled"
+    tmp_crushmap_decomp: "/tmp/crushmap.decompiled"
+  #    ignore_invalid: false
+  when: "inventory_hostname == _ceph_init_node" # run only once per cluster
+  block:
+    - name: Set CRUSH tunables profile, removing undeclared tunable options
+      ansible.builtin.command: "ceph osd crush tunables {{ pve_ceph_tunable_profile | default('default', true) }}"
+      changed_when: true
+
+    - name: Prepare CRUSH map modification
+      block:
+        - name: Dump CRUSH map into file
+          ansible.builtin.command: "ceph osd getcrushmap -o {{ tmp_crushmap_comp }}"
+          changed_when: false
+
+        - name: Backup CRUSH map
+          ansible.builtin.command: "cp {{ src }} {{ dest }}"
+          vars:
+            src: "{{ tmp_crushmap_comp }}"
+            dest: "/etc/pve/ceph/crushmap.backup_{{ ansible_date_time.epoch }}.compiled"
+          changed_when: true
+          when: "pve_ceph_backup_crushmap | bool"
+
+        - name: Dump CRUSH map into JSON
+          ansible.builtin.command: "crushtool -i {{ tmp_crushmap_comp }} --dump -f json"
+          register: _ceph_crush_dump_raw
+          changed_when: false
+
+        - name: Normalize CRUSH dump into variable
+          ansible.builtin.set_fact:
+            _ceph_crush_map: "{{ _ceph_crush_dump_raw.stdout | default('{}') | from_json }}"
+
+    - name: Modify decompiled CRUSH map (tunables, bucket types)
+      block:
+        - name: Decompile CRUSH map
+          ansible.builtin.command: "crushtool -d {{ tmp_crushmap_comp }} -o {{ tmp_crushmap_decomp }}"
+          changed_when: false
+
+        ### Operations on decompiled CRUSH map
+        # CRUSH tunables
+        - name: Normalize CRUSH tunable dict
+          ansible.builtin.set_fact:
+            pve_ceph_custom_crush_tunables:
+              "{{ pve_ceph_custom_crush_tunables | dict2items(key_name='name', value_name='value') }}"
+          when: "pve_ceph_custom_crush_tunables is mapping"
+
+        - name: Set custom Ceph CRUSH tunables by name and value
+          ansible.builtin.lineinfile:
+            path: "{{ tmp_crushmap_decomp }}"
+            line: "tunable {{ item.name }} {{ item.value }}"
+            insertafter: "^# begin crush map"
+            regexp: "^tunable {{ item.name }} (.+)$"
+            state: present
+            mode: "0644"
+            owner: "root"
+            group: "root"
+            validate: "crushtool -c %s"
+          loop: "{{ pve_ceph_custom_crush_tunables | list }}"
+          when:
+            - "item.name is defined"
+            - "item.value is defined"
+
+        # CRUSH bucket types
+        - name: Normalize CRUSH default bucket types dict
+          ansible.builtin.set_fact:
+            pve_ceph_crush_default_bucket_types:
+              "{{ pve_ceph_crush_default_bucket_types | dict2items(key_name='type_id', value_name='name') }}"
+          when: "pve_ceph_crush_default_bucket_types is mapping"
+
+        - name: Normalize CRUSH custom bucket types dict
+          ansible.builtin.set_fact:
+            pve_ceph_crush_custom_bucket_types:
+              "{{ pve_ceph_crush_custom_bucket_types | dict2items(key_name='type_id', value_name='name') }}"
+          when: "pve_ceph_crush_custom_bucket_types is mapping"
+
+        - name: Remove undeclared Ceph CRUSH bucket types
+          ansible.builtin.lineinfile:
+            path: "{{ tmp_crushmap_decomp }}"
+            regexp: "^type {{ item.type_id }} {{ item.name }}$"
+            state: absent
+            mode: "0644"
+            owner: "root"
+            group: "root"
+          #  validate: "crushtool -c %s" # NOTICE Don't do early validation!
+          loop: "{{ _ceph_crush_map.types | default([]) }}"
+          when:
+            - "pve_ceph_crush_default_bucket_types | selectattr('type_id', '==', item.type_id) | length == 0"
+            - "pve_ceph_crush_custom_bucket_types | selectattr('type_id', '==', item.type_id) | length == 0"
+
+        - name: Set custom Ceph CRUSH bucket types by name and value
+          ansible.builtin.lineinfile:
+            path: "{{ tmp_crushmap_decomp }}"
+            line: "type {{ item.type_id }} {{ item.name }}"
+            insertafter: "^# types"
+            regexp: "^type {{ item.type_id }} (.+)$"
+            state: present
+            mode: "0644"
+            owner: "root"
+            group: "root"
+          #  validate: "crushtool -c %s" # NOTICE Don't do early validation!
+          loop: "{{ pve_ceph_crush_custom_bucket_types | list + pve_ceph_crush_default_bucket_types | list }}"
+          when:
+            - "item.type_id is defined"
+            - "item.name is defined"
+
+        - name: Compile and validate CRUSH map
+          ansible.builtin.command: "crushtool -c {{ tmp_crushmap_decomp }} -o {{ tmp_crushmap_comp }}"
+          changed_when: false
+
+    - name: Manage CRUSH map bucket hierarchy and rules
+      block:
+        # TODO more validation, really:
+        # no duplicate ids, no loops, correct root bucket, correct host buckets with osds, type_name is declared,
+        # buckets must not be referenced more than once (or pve fails), ref buckets must exist, ...
+        # rules must reference existing buckets
+        - name: Prepare CRUSH map bucket hierarchy modifications
+          block:
+            - name: Initialize variables
+              ansible.builtin.set_fact:
+                _highest_bucket_names: "{{ [] }}"
+                _osd_lvm_list: "{{ [] }}"
+
+            - name: Ensure every bucket has a name and type
+              ansible.builtin.assert:
+                that:
+                  - "item.name | default(false, true)"
+                  - "item.type_name | default(false, true)"
+                msg: "Bucket {{ item }} in pve_ceph_crush_buckets is missing a (type_)name!"
+              loop: "{{ pve_ceph_crush_buckets }}"
+
+            - name: Ensure specified bucket ids are negative
+              ansible.builtin.assert:
+                that: "item.id | default(-1) | int < 0"
+                msg: "Bucket id of bucket {{ item }} in pve_ceph_crush_buckets must be negative!"
+              loop: "{{ pve_ceph_crush_buckets }}"
+
+            - name: Query OSD lvm lvs on all hosts
+              ansible.builtin.command: "ceph-volume lvm list --format json"
+              register: _osd_lvm_list_raws
+              delegate_to: "{{ item }}"
+              loop: "{{ groups[pve_group] }}"
+              changed_when: false
+
+            - name: Create host to OSD list
+              ansible.builtin.set_fact:
+                _osd_lvm_list:
+                  # List of OSDs in cluster: [{id: <osd id>, host: <(inventory_)hostname>, device_class: <class>, …}]
+                  "{{ _osd_lvm_list + item.stdout | from_json | json_query(query_str) | map('combine', {'host': item.item}) }}"
+              vars:
+                query_str: '*[].{id: tags."ceph.osd_id", lv_size: lv_size, device_class: tags."ceph.crush_device_class"}'
+              loop: "{{ _osd_lvm_list_raws.results }}"
+              loop_control:
+                label: "{{ item.item }}"
+
+            - name: Create temporary loop var
+              ansible.builtin.set_fact:
+                _tmp_loop: "{{ _osd_lvm_list }}"
+
+            - name: Normalize host to OSD list
+              ansible.builtin.set_fact:
+                _osd_lvm_list: "{{ _osd_lvm_list | rejectattr('id', '==', item.id) + [item | combine(upd_item)] }}"
+              vars:
+                # NOTE: 1024e4 == 1099511627776 == 1TiB in Bytes
+                upd_item: "{{ {'name': 'osd.' + item.id,
+                               'weight': (item.lv_size | float) / (1099511627776),
+                               'device_class': item.device_class | default('hdd', true),
+                               'type': 'osd'} }}"
+              loop: "{{ _tmp_loop }}"
+
+            - name: Create temporary loop var
+              ansible.builtin.set_fact:
+                _tmp_loop: "{{ pve_ceph_crush_buckets }}"
+
+            - name: Normalize CRUSH bucket map parameter to ensure 'buckets' attribute exists
+              ansible.builtin.set_fact:
+                pve_ceph_crush_buckets: "{{ pve_ceph_crush_buckets | rejectattr('name', '==', item.name)
+                                          + [item | combine({'buckets': []})] }}"
+              loop: "{{ _tmp_loop }}"
+              when: "item.buckets is not defined or item.buckets is not iterable"
+
+            - name: Create temporary loop var
+              ansible.builtin.set_fact:
+                _tmp_loop: "{{ pve_ceph_crush_buckets }}"
+
+            - name: Normalize CRUSH bucket map parameter bucket buckets
+              ansible.builtin.set_fact:
+                pve_ceph_crush_buckets: "{{ pve_ceph_crush_buckets | rejectattr('name', '==', item.name)
+                                          + [item | combine({'buckets': upd_buckets | unique})] }}"
+              vars:
+                upd_buckets: "{{ item.buckets is string | ternary((item.buckets | string | split(',') | map('trim')),
+                                 item.buckets | reject('mapping') | map('string')
+                                 + item.buckets | select('mapping') | selectattr('name', 'defined') | map(attribute='name') | map('string')
+                                 + item.buckets | select('mapping') | selectattr('id', 'defined') | map(attribute='id') | map('string')) }}"
+              loop: "{{ _tmp_loop }}"
+
+            - name: Create temporary loop var
+              ansible.builtin.set_fact:
+                _tmp_loop: "{{ pve_ceph_crush_buckets }}"
+
+            - name: Normalize CRUSH bucket map parameter bucket ids
+              ansible.builtin.set_fact:
+                pve_ceph_crush_buckets: "{{ pve_ceph_crush_buckets | rejectattr('name', '==', item.name)
+                                          + [item | combine({'id': item.id | string})] }}"
+              loop: "{{ _tmp_loop }}"
+              when: "item.id | default(false, true) is not false"
+
+            - name: Find first order bucket(s) in custom hierarchy
+              ansible.builtin.set_fact:
+                _highest_bucket_names: "{{ _highest_bucket_names + [item.name] }}"
+              vars:
+                bucket_childrens: "{{ pve_ceph_crush_buckets | map(attribute='buckets') | flatten | list }}"
+              loop: "{{ pve_ceph_crush_buckets }}"
+              when:
+                - "item.name not in bucket_childrens"
+                - "item.id is not defined or item.id not in bucket_childrens"
+
+            - name: Assert custom bucket hierarchy has first order buckets
+              ansible.builtin.assert:
+                that: "_highest_bucket_names | length > 0"
+                msg: "Buckets in pve_ceph_crush_buckets parameter form a loop!"
+              when: "pve_ceph_crush_buckets | length > 0"
+
+            - name: Normalize CRUSH bucket map parameter to ensure root bucket exists
+              ansible.builtin.set_fact:
+                # TODO check for correct root type_name, parameterise default_root_bucket_name and default_root_bucket_type_name
+                pve_ceph_crush_buckets: "{{ pve_ceph_crush_buckets + [{'name': 'default', 'type_name': 'root', 'buckets': _highest_bucket_names}] }}"
+              when: "pve_ceph_crush_buckets | selectattr('type_name', '==', 'root') | length == 0"
+
+            - name: Create temporary loop var
+              ansible.builtin.set_fact:
+                _tmp_loop: "{{ pve_ceph_crush_buckets }}"
+
+            - name: Normalize CRUSH bucket map parameter host buckets
+              ansible.builtin.set_fact:
+                pve_ceph_crush_buckets: "{{ pve_ceph_crush_buckets | rejectattr('name', '==', item.name)
+                                          + [item | combine({'name': upd_name, 'inv_host': inv_host})]
+                                          | rejectattr('name', 'in', (ref_buckets | map(attribute='name')))
+                                          + upd_ref_buckets }}"
+              vars:
+                # use_fqdn: false|true # Demo on how to implement different naming schemes
+                # upd_name: "{{ use_fqdn | ternary(hostvars[_shrt2invname[item.name]].ansible_fqdn, (item.name | split('.') | first)) }}"
+                upd_name: "{{ item.name }}"
+                # resolve hostname from host bucket name
+                inv_host: "{{ _shrt2invname[item.name] | default(fqdn2invname) }}"
+                # Jinja evaluates default(<expr>) even when it is not applied if it is not behind a separate variable.
+                fqdn2invname: "{{ hostvars[_fqdn2invname[item.hostname]] }}"
+                # Buckets which reference current bucket by name
+                ref_buckets: "{{ pve_ceph_crush_buckets | json_query(query_str) }}"
+                query_str: "[? contains(buckets, '{{ item.name }}')]"
+                # Buckets which reference current bucket by new name (upd_name)
+                # (later step/task) remove reference to old item.name from all ref_buckets.buckets[]
+                upd_ref_buckets: "{{ ref_buckets | map('combine', {'buckets': upd_name}) }}"
+              # TODO check for correct host type_name
+              loop: "{{ _tmp_loop | selectattr('type_name', '==', 'host') }}"
+
+            - name: Add missing host buckets to CRUSH bucket map parameter
+              ansible.builtin.set_fact:
+                # TODO check for correct host type_name
+                pve_ceph_crush_buckets: "{{ pve_ceph_crush_buckets + [{'name': upd_name, 'inv_host': item, 'type_name': 'host', 'buckets': []}] }}"
+              vars:
+                # use_fqdn: false|true # Demo on how to implement different naming schemes
+                # upd_name: "{{ use_fqdn | ternary(hostvars[_shrt2invname[item.name]].ansible_fqdn, (item.name | split('.') | first)) }}"
+                upd_name: "{{ item | split('.') | first }}"
+                host_bucket_hosts: "{{ pve_ceph_crush_buckets | selectattr('type_name', '==', 'host') | map(attribute='inv_host') }}"
+              loop: "{{ groups[pve_group] | difference(host_bucket_hosts) | unique }}"
+
+            - name: Update CRUSH bucket map parameter root bucket to include unreferenced (stray) hosts
+              ansible.builtin.set_fact:
+                pve_ceph_crush_buckets: "{{ pve_ceph_crush_buckets | rejectattr('name', '==', root_bucket.name)
+                                        + [root_bucket | combine({'buckets': upd_root_buckets})] }}"
+              vars:
+                # TODO check for correct root and host type_name
+                # TODO use json_query to make the vars more readable
+                root_bucket: "{{ pve_ceph_crush_buckets | selectattr('type_name', '==', 'root') | list | first }}"
+                host_buckets: "{{ pve_ceph_crush_buckets | selectattr('type_name', '==', 'host') }}"
+                # Buckets that are referenced by other buckets
+                bucket_refs: "{{ pve_ceph_crush_buckets | map(attribute='buckets') | flatten }}"
+                # Buckets of type host, which are referenced by other buckets
+                ref_buckets: "{{ (host_buckets | selectattr('id', 'defined') | selectattr('id', 'in', bucket_refs)
+                                + host_buckets | selectattr('name', 'in', bucket_refs))
+                               | map(attribute='name') }}"
+                # Buckets of type host, which aren't referenced by other buckets ("stray host buckets")
+                no_ref_buckets: "{{ host_buckets | map(attribute='name') | reject('in', ref_buckets) }}"
+                # Root bucket buckets with additional stray/unreferenced host type buckets
+                upd_root_buckets: "{{ root_bucket.buckets + no_ref_buckets }}"
+              when: "no_ref_buckets | length > 0"
+
+            - name: Create temporary loop var
+              ansible.builtin.set_fact:
+                _tmp_loop: "{{ pve_ceph_crush_buckets }}"
+
+            - name: Normalize CRUSH bucket map parameter to remove non-existing references
+              ansible.builtin.set_fact:
+                pve_ceph_crush_buckets: "{{ pve_ceph_crush_buckets | rejectattr('name', '==', item.name)
+                                        + [item | combine({'buckets': upd_buckets})] }}"
+              vars:
+                # Bucket names and ids in parameter
+                bucket_names_ids: "{{ pve_ceph_crush_buckets | map(attribute='name') | flatten
+                                    + pve_ceph_crush_buckets | selectattr('id', 'defined')
+                                      | map(attribute='id') | map('string') | flatten }}"
+                # Updated bucket reference which exist as bucket in parameter
+                upd_buckets: "{{ item.buckets | map('string') | intersect(bucket_names_ids) }}"
+              loop: "{{ _tmp_loop }}"
+              when: "(upd_buckets | length) < (item.buckets | length)"
+
+            - name: Create temporary loop var
+              ansible.builtin.set_fact:
+                _tmp_loop: "{{ pve_ceph_crush_buckets }}"
+
+            - name: Normalize CRUSH bucket map parameter to include OSD items
+              ansible.builtin.set_fact:
+                # NOTICE we just assume that host buckets don't reference any other items than OSDs/device items
+                pve_ceph_crush_buckets: "{{ pve_ceph_crush_buckets | rejectattr('name', '==', item.name)
+                                        + [item | combine({'buckets': osd_items})] }}"
+              vars:
+                osd_items: "{{ _osd_lvm_list | selectattr('host', '==', item.inv_host) | list }}"
+              # TODO check for correct host type_name
+              loop: "{{ _tmp_loop | selectattr('type_name', '==', 'host') }}"
+              when: "osd_items | length > 0"
+
+            - name: Initialize variables for CRUSH map sort
+              ansible.builtin.set_fact:
+                _tmp_crush_buckets: "{{ [] }}"
+                _tmp_buckets_unsorted: "{{ pve_ceph_crush_buckets }}"
+
+            # This task looks for buckets which are not referenced by other buckets and places them subsequently
+            # onto a "stack" (_tmp_crush_buckets) which then has correct order from top (leaf) to bottom (root).
+            - name: Sort CRUSH map buckets from leaves first to root(s) last
+              ansible.builtin.set_fact:
+                _tmp_crush_buckets: "{{ buckets_not_ref + _tmp_crush_buckets }}"
+                _tmp_buckets_unsorted: "{{ buckets_is_ref }}"
+              vars:
+                bucket_refs: "{{ _tmp_buckets_unsorted | map(attribute='buckets') | flatten }}"
+                #                ref_bucket_names: "{{ bucket_refs | select('string') }}"
+                #                ref_bucket_ids: "{{ bucket_refs | select('integer') }}"
+                buckets_with_name_ref: "{{ _tmp_buckets_unsorted | selectattr('name', 'in', bucket_refs) }}"
+                buckets_with_id_ref: "{{ _tmp_buckets_unsorted | selectattr('id', 'defined') | selectattr('id', 'in', bucket_refs) }}"
+                buckets_is_ref: "{{ (buckets_with_name_ref + buckets_with_id_ref) | unique }}"
+                buckets_is_ref_names: "{{ buckets_is_ref | map(attribute='name') }}"
+                buckets_not_ref: "{{ _tmp_buckets_unsorted | rejectattr('name', 'in', buckets_is_ref_names) }}"
+              loop: "{{ range(0, pve_ceph_crush_buckets | length) }}"
+              when: "_tmp_buckets_unsorted | default([]) | length > 0"
+
+            - name: Fail when some buckets form a loop
+              ansible.builtin.assert:
+                that: "_tmp_buckets_unsorted | default([]) | length == 0"
+                msg: "All or some buckets in {{ _tmp_buckets_unsorted | map(attribute='name') }} form a loop!"
+
+            - name: Apply sort order to CRUSH buckets parameter
+              ansible.builtin.set_fact:
+                pve_ceph_crush_buckets: "{{ _tmp_crush_buckets }}"
+                _tmp_crush_buckets: "{{ [] }}"
+
+            - name: Display normalized crush buckets
+              ansible.builtin.debug:
+                msg: "pve_ceph_crush_buckets_names: {{ pve_ceph_crush_buckets | default('UNDEF') | map(attribute='name') }}
+                      pve_ceph_crush_buckets: {{ pve_ceph_crush_buckets | default('UNDEF') }}"
+
+        - name: Modify decompiled CRUSH map (bucket hierarchy)
+          when: "pve_ceph_crush_buckets | list | length > 0"
+          block:
+            - name: Decompile CRUSH map
+              ansible.builtin.command: "crushtool -d {{ tmp_crushmap_comp }} -o {{ tmp_crushmap_decomp }}"
+              changed_when: false
+
+            - name: Set OSD devices in decompiled CRUSH map
+              ansible.builtin.blockinfile:
+                path: "{{ tmp_crushmap_decomp }}"
+                insertafter: "^# devices"
+                marker: "# {mark}"
+                marker_begin: "devices"
+                marker_end: "types"
+                block: |
+                  {% block BLOCK_IN_FILE %}
+                  {% for osd in (_osd_lvm_list | selectattr('type', '==', 'osd')) %}
+                  device {{ osd.id }} {{ osd.name }} class {{ osd.device_class }}
+                  {% endfor %}
+
+                  {% endblock %}
+                # validate: "crushtool -c %s" # NOTICE Don't do early validation!
+                mode: "0644"
+                owner: "root"
+                group: "root"
+
+            - name: Set bucket hierarchy in decompiled CRUSH map
+              ansible.builtin.blockinfile:
+                path: "{{ tmp_crushmap_decomp }}"
+                marker: "# {mark}"
+                marker_begin: "buckets"
+                marker_end: "rules"
+                block: |
+                  {% block BLOCK_IN_FILE %}
+                  {% set indent_space="        " %}
+                  {% for bucket in pve_ceph_crush_buckets %}
+                  {{ bucket.type_name }} {{ bucket.name }} {
+                  {% if bucket.id | default(false) %}
+                          id {{ bucket.id }}
+                  {% endif %}
+                  {% for class, shdw_id  in (bucket.class_ids | default({})).items() %}
+                          id {{ shdw_id }} class {{ class }}
+                  {% endfor %}
+                          alg {{ bucket.alg | default('straw2', true) }}
+                          hash {{ bucket.hash | default('0  # rjenkins1', true) }}
+                  {% for item in bucket.buckets %}
+                  {% if item is mapping %}
+                  {% if item.name is defined %}
+                          item {{ item.name }} weight {{ item.weight | default(0.00000) }}
+                  {% elif item.id is defined %}
+                  {% set ref_item = (pve_ceph_crush_buckets | selectattr('id', 'defined') | selectattr('id', '==', item.id) | first) %}
+                          item {{ ref_item.name }} weight {{ item.weight | default(ref_item.weight | default(0.00000), true) }}
+                  {% endif %}
+                  {% elif (item | int(default=0)) < 0 %}
+                  {% set ref_item = (pve_ceph_crush_buckets | selectattr('id', 'defined') | selectattr('id', '==', item) | first) %}
+                          item {{ ref_item.name }} weight {{ ref_item.weight | default(0.00000) }}
+                  {% else %}
+                          item {{ item }} weight 0.00000
+                  {% endif %}
+                  {% endfor %}
+                  }
+                  {% endfor %}
+
+                  {% endblock %}
+                # validate: "crushtool -c %s" # NOTICE Don't do early validation!
+                mode: "0644"
+                owner: "root"
+                group: "root"
+
+              # TODO validate rule ids and steps, ensure default rule references correct bucket
+            - name: Set declared CRUSH rules in decompiled CRUSH map
+              ansible.builtin.blockinfile:
+                path: "{{ tmp_crushmap_decomp }}"
+                insertafter: "^# rules"
+                marker: "# {mark}"
+                marker_begin: "rules"
+                marker_end: "end crush map"
+                block: |
+                  {% block BLOCK_IN_FILE %}
+                  {% set indent_space="        " %}
+                  {% for rule in pve_ceph_crush_rules %}
+                  rule {{ rule.rule_name }} {
+                          id {{ rule.rule_id }}
+                          type {{ rule.type }}
+                  {% for step in rule.steps %}
+                          step {{ step }}
+                  {% endfor %}
+                  {% if rule.steps[-1] != "emit" %}
+                          step emit
+                  {% endif %}
+                  }
+                  {% endfor %}
+                  
+                  {% endblock %}
+                # validate: "crushtool -c %s" # NOTICE Don't do early validation!
+                mode: "0644"
+                owner: "root"
+                group: "root"
+
+            - name: Compile and validate CRUSH map
+              ansible.builtin.command: "crushtool -c {{ tmp_crushmap_decomp }} -o {{ tmp_crushmap_comp }}"
+              changed_when: false
+
+            - name: Create default CRUSH replication rule(s)
+              when: "pve_ceph_crush_rules | list | length == 0"
+              block:
+                - name: Find root bucket(s) in CRUSH hierarchy
+                  ansible.builtin.set_fact:
+                    # TODO check for correct root type_name
+                    _root_buckets: "{{ pve_ceph_crush_buckets | selectattr('type_name', '==', 'root') | map(attribute='name') }}"
+
+                - name: Write default replication rule(s)
+                  ansible.builtin.command:
+                    "crushtool -i {{ tmp_crushmap_comp }} --create-replicated-rule replicated_rule {{ item }} host -o {{ tmp_crushmap_comp }}"
+                  loop: "{{ _root_buckets }}"
+                  changed_when: true
+
+            - name: Reweight CRUSH map after hierarchy modification
+              ansible.builtin.command: "crushtool -i {{ tmp_crushmap_comp }} --reweight -o {{ tmp_crushmap_comp }}"
+              changed_when: false
+
+    - name: Finish CRUSH map modification
+      block:
+        - name: Apply modified CRUSH map
+          ansible.builtin.command: "ceph osd setcrushmap -i {{ tmp_crushmap_comp }}"
+          changed_when: true
+
+        - name: Remove temporary CRUSH map files
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop: "{{ [tmp_crushmap_comp, tmp_crushmap_decomp] }}"
+          changed_when: true
+          when: false # DEBUG TODO
+
+        - name: Get and display CRUSH map changes
+          # TODO
+          when: false
+          block:
+            - name: Dump new CRUSH map
+              ansible.builtin.command: "ceph osd crush dump"
+              register: _ceph_crush_map_new_raw
+              changed_when: false
+
+            - name: Normalize new CRUSH map into variable
+              ansible.builtin.set_fact:
+                _ceph_crush_map_new: "{{ _ceph_crush_map_new.stdout | default('{}') | from_json }}"
+
+            - name: Find differences
+              ansible.builtin.debug:
+                msg: |
+                  {% macro compare(d1, d2, path) -%}
+                    {% for key in (d1.keys() | union(d2.keys()) | sort) %}
+                      {% set current_path = (path + [key]) if path else [key] %}
+                      {% if key not in d2 %}
+                        - Path: {{ current_path | join('.') }} | Missing in Right | Value: {{ d1[key] | to_nice_json }}
+                      {% elif key not in d1 %}
+                        - Path: {{ current_path | join('.') }} | Missing in Left | Value: {{ d2[key] | to_nice_json }}
+                      {% else %}
+                        {% if d1[key] is mapping and d2[key] is mapping %}
+                          {{ compare(d1[key], d2[key], current_path) }}
+                        {% elif d1[key] is iterable and d2[key] is iterable and d1[key] is not string and d2[key] is not string %}
+                          {% if d1[key] | sort != d2[key] | sort %}
+                            - Path: {{ current_path | join('.') }} | Values differ:
+                              Left: {{ d1[key] | to_nice_json }}
+                              Right: {{ d2[key] | to_nice_json }}
+                          {% endif %}
+                        {% elif d1[key] != d2[key] %}
+                          - Path: {{ current_path | join('.') }} | Values differ:
+                            Left: {{ d1[key] | to_nice_json }}
+                            Right: {{ d2[key] | to_nice_json }}
+                        {% endif %}
+                      {% endif %}
+                    {% endfor %}
+                  {%- endmacro %}
+                  Differences:
+                  {{ compare(dict1, dict2, []) }}
+              vars:
+                dict1: "{{ _ceph_crush_map }}"
+                dict2: "{{ _ceph_crush_map_new }}"
+

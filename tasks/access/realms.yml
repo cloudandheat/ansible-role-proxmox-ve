@@ -1,0 +1,159 @@
+---
+- name: Manage PVE realms
+  tags: realms
+  block:
+    - name: Normalize PVE realms parameter
+      block:
+        - name: Normalize PVE realms parameter into list of dicts from mapping
+          ansible.builtin.set_fact:
+            # transform from {<realm>:{<setting>: <value>, …}} into [{'realm':…, <setting>: <value>, …}]
+            pve_realms: "{{ pve_realms | dict2items | json_query('[].merge({realm: key}, not_null(value, {realm: key}))') }}"
+          when: "pve_realms is mapping"
+
+        - name: Normalize PVE realms parameter into empty list if none
+          ansible.builtin.set_fact:
+            pve_realms: "{{ [] }}"
+          when: "pve_realms is none"
+
+    - name: Validate PVE realms parameter
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Ensure that every entry has a realm name
+          ansible.builtin.assert:
+            that: "item.realm | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have a realm!"
+          loop: "{{ pve_realms }}"
+
+        - name: Ensure that every entry has a realm-type
+          ansible.builtin.assert:
+            that: "item.type | default('', true) in ['ad', 'ldap', 'openid', 'pam', 'pve']"
+            msg: "Definition of '{{ item }}' must have a realm-type(='ad', 'ldap', 'openid', 'pam' or 'pve')!"
+          loop: "{{ pve_realms }}"
+
+        - name: Ensure that every entry has a server
+          ansible.builtin.assert:
+            that: "item.server1 | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have a server1!"
+          loop: "{{ pve_realms }}"
+
+    - name: Prepare PVE realms management
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Normalize PVE realms parameter for templating
+          ansible.builtin.set_fact:
+            _pve_realms: "{{ pve_realms | ansible.utils.remove_keys(target=['sync', 'password']) }}"
+
+    - name: Remove PVE realms
+      when:
+        - "inventory_hostname == _init_node"
+        - "pve_realms | length == 0"
+      tags: realms_remove
+      block:
+        - name: Remove PVE realms
+          ansible.builtin.file:
+            path: "/etc/pve/domains.cfg"
+            state: absent
+
+        - name: Find left over PVE realm credentials
+          ansible.builtin.find:
+            path: "/etc/pve/priv/realm/"
+            file_type: file
+            pattern: "*.pw"
+          register: _realm_pw_files_raw
+
+        - name: Remove PVE realm credentials
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: absent
+          loop: "{{ _realm_pw_files_raw.files }}"
+          when: "item.path is defined"
+
+    - name: Set PVE realms
+      when:
+        - "inventory_hostname == _init_node"
+        - "pve_realms | length > 0"
+      tags:
+        - realms_create
+        - realms_modify
+      block:
+        # NOTICE: Ansible's template module cannot create files on /etc/pve because atomic renames aren't supported by pmxcfs.
+        - name: Ensure PVE realms config file exists
+          ansible.builtin.file:
+            path: "/etc/pve/domains.cfg"
+            state: touch
+            access_time: preserve
+            modification_time: preserve
+            owner: "root"
+            group: "www-data"
+            mode: "0640"
+
+        - name: Set PVE realms
+          ansible.builtin.template:
+            src: "access/domains.cfg.j2"
+            dest: "/etc/pve/domains.cfg"
+            owner: "root"
+            group: "www-data"
+            mode: "0640"
+
+        - name: Ensure PVE realms credentials directory exists
+          ansible.builtin.file:
+            path: "/etc/pve/priv/realm"
+            state: directory
+            owner: "root"
+            group: "www-data"
+            mode: "0700"
+
+        # NOTICE: Ansible's copy module cannot write to /etc/pve because atomic renames aren't supported by pmxcfs.
+        - name: Write PVE realm credentials
+          ansible.builtin.copy:
+            content: "{{ item.password }}"
+            dest: "/tmp/{{ item.realm }}.pw"
+            owner: "root"
+            group: "www-data"
+            mode: "0600"
+          loop: "{{ pve_realms | selectattr('password', 'defined') }}"
+          loop_control:
+            label: "{{ item.realm }}"
+
+        - name: Move PVE realm credential files to destination
+          ansible.builtin.command: "mv /tmp/{{ item.realm }}.pw /etc/pve/priv/realm/{{ item.realm }}.pw"
+          loop: "{{ pve_realms | selectattr('password', 'defined') }}"
+          loop_control:
+            label: "{{ item.realm }}"
+          changed_when: true
+
+        - name: Validate PVE realm configuration
+          block:
+            - name: Query PVE realms info
+              ansible.builtin.command: "pvesh get /access/domains --output-format json"
+              register: _pvesh_get_realms_raw
+              changed_when: false
+
+            - name: Check PVE realms info
+              ansible.builtin.assert:
+                that: "_pvesh_get_realms_raw.stderr_lines | length == 0"
+                msg: "Error validating PVE realms: {{ _pvesh_get_realms_raw.stderr_lines }}"
+
+    - name: Manually sync PVE realms
+      when: "inventory_hostname == _init_node"
+      tags: realms_sync
+      block:
+        - name: Trigger manual PVE realm syncs
+          ansible.builtin.command:
+            "pvesh create /access/domains/{{ item.realm }}/sync {{ item.sync | dict2args(bool2int=true) }}"
+          register: _pvesh_domains_sync_raws
+          loop: "{{ pve_realms }}"
+          loop_control:
+            label: "{{ item.realm }} ({{ item.type }})"
+          when:
+            - "item.sync | default(false, true) is not false"
+            - "item.type in ['ad', 'ldap']"
+          changed_when: true
+
+        - name: Display PVE realm syncs output
+          ansible.builtin.debug:
+            msg: "{{ ((item.stderr_lines | length) > 0) | ternary('Sync Error: ' + item.stderr, 'Sync Result: ' + item.stdout) }}"
+          loop: "{{ _pvesh_domains_sync_raws.results | default([]) }}"
+          loop_control:
+            label: "{{ item.item.realm }} ({{ item.item.type }})"
+          when: "not item.skipped | default(false)"

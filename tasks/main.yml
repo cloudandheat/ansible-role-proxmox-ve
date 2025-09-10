@@ -1,452 +1,143 @@
-# tasks file for ansible-role-proxmox
+# main tasks file for ansible-role-proxmox
+# just call other tasks here (with their tags)
 ---
-- import_tasks: load_variables.yml
+- name: Gather, normalize, validate, build variables
+  ansible.builtin.import_tasks: prepare/load_variables.yml
+  tags:
+    - always
+    - variables
 
-- name: Gather package facts
-  package_facts:
-    manager: auto
+- name: Gather package (un-)installation candidates
+  ansible.builtin.import_tasks: prepare/identify_needed_packages.yml
+  tags:
+    - always
+    - prepare
 
-- name: Ensure that facts are present for all cluster hosts
-  assert:
-    that:
-      - "hostvars[item].ansible_facts"
-    msg: "Could not load facts for {{ item }}. Please run your playbook against all hosts in {{ pve_group }}."
-  with_items: "{{ groups[pve_group] }}"
-  when: "pve_cluster_enabled | bool"
+- name: Configure name resolution within the cluster
+  ansible.builtin.import_tasks: system/name_resolution.yml
+  tags:
+    - name_resolution
 
-- name: Ensure that group has more than one host to enable PVE clustering
-  assert:
-    that:
-      - "groups[pve_group] | length | int >= 2"
-    msg: "Clustering is enabled for {{ pve_group }} but does not meet the \
-          minimum host requirement of 2. Please either remove/disable \
-          pve_cluster_enabled, or update your inventory as needed."
-  when: "pve_cluster_enabled | bool"
-
-- name: Ensure this host is in the group specified
-  assert:
-    that:
-      - "inventory_hostname in groups[pve_group]"
-    msg: "This host does not appear to be in the group {{ pve_group }}, \
-          did you specify the pve_group host variable correctly?"
-  when: "pve_cluster_enabled | bool"
-
-- import_tasks: ssh_cluster_config.yml
+# TODO enable and config ssh for single nodes when pve_manage_ssh and not pve_cluster_enabled
+- name: Configure mutual SSH keys on hosts for cluster joins
+  ansible.builtin.import_tasks: system/ssh_config.yml
   when:
-    - "pve_manage_ssh | bool and pve_cluster_enabled | bool"
+    - "pve_manage_ssh | bool"
+    - "pve_cluster_enabled | bool"
+  tags:
+    - ssh
 
-- name: Run handlers if needed (ssh server reload)
-  meta: flush_handlers
+- name: Upgrade or downgrade the system packages
+  ansible.builtin.import_tasks: system/apt.yml
+  tags:
+    - apt
 
-- name: Enumerate all cluster hosts within the hosts file
-  blockinfile:
-    dest: /etc/hosts
-    marker: "# {mark} ANSIBLE MANAGED: Proxmox Cluster Hosts"
-    content: "\
-      {% for host in groups[pve_group] %}\
-        {{ hostvars[host].pve_cluster_addr0 }}
-        {{ hostvars[host].ansible_fqdn }}
-        {{ hostvars[host].ansible_hostname }}
+- name: Set and apply sysctl configuration
+  ansible.builtin.import_tasks: system/sysctl.yml
+  tags:
+    - sysctl
 
-
-      {% endfor %}"
-  when: "pve_cluster_enabled | bool and pve_manage_hosts_enabled | bool"
-
-- name: Remove conflicting lines in hosts files
-  lineinfile:
-    dest: /etc/hosts
-    # expanded, this turns out to be, for example:
-    # regexp: "^(?!10\.0\.3\.17\\ test01\.lxc\\ test01)(?!10\.0\.3\.17)[0-9a-f:.]+(\s+.*)?\s(test01\.lxc|test01)(\s+.*|\s*)$'
-    # basically first we ignore lines that match from the host enumeration task
-    # above, then we match against different IPs (e.g. NOT 10.0.3.17) that have
-    # the hostname/fqdn we inserted a record for previously, taking care also to
-    # detect word boundaries (\b wasn't working for some reason)
-    regexp: "\
-      ^(?!\
-        {{ _correct_line | regex_escape() }}\
-      )\
-      {# Ignore lines starting with the current cluster host #}\
-      (?!{{ _correct_ip | regex_escape() }})\
-      {# Match an IPv4/v6 address at the start #}\
-      [0-9a-f:.]\
-      {# Match any hostnames, surrounded by whitespace #}\
-      +(\\s+.*)?\\s\
-      (\
-        {{ _match_hosts | map('regex_escape') | join('|') }}\
-      )\
-      (\\s+.*|\\s*)$"
-    state: absent
-    backup: yes
-  loop: "{{ groups[pve_group] }}"
-  vars:
-    _correct_line: "\
-      {{ hostvars[item].pve_cluster_addr0 }}
-      {{ hostvars[item].ansible_fqdn }}
-      {{ hostvars[item].ansible_hostname }}"
-    _correct_ip: "{{ hostvars[item].pve_cluster_addr0 }}"
-    _match_hosts: >-
-      [
-        "{{ hostvars[item].ansible_fqdn }}",
-        "{{ hostvars[item].ansible_hostname }}"
-      ]
-  when: "pve_cluster_enabled | bool and pve_manage_hosts_enabled | bool"
-
-- name: Define hostname in /etc/hosts for single-host installations
-  lineinfile:
-    dest: /etc/hosts
-    regexp: "\
-      {# Match an IPv4/v6 address at the start #}\
-      ^\\s*[0-9a-f:.]+\
-      {# Match at least one whitespace, and any non-hostname names #}\
-      (\\s+.*)*\\s\
-      {# Match either our fqdn or hostname #}\
-      ({{ ansible_fqdn | regex_escape() }}|{{ ansible_hostname | regex_escape() }})\
-      {# Require there be a word boundary at the end of the name(s). #}\
-      {# This can be any whitespace, or end-of-line. #}\
-      (\\s+.*|\\s*)$"
-    line: "{{ hostvars[inventory_hostname].pve_cluster_addr0 }} {{ ansible_fqdn }} {{ ansible_hostname }}"
-    backup: yes
-  when: "not pve_cluster_enabled | bool and pve_manage_hosts_enabled | bool"
-
-- name: Ensure gpg is installed
-  apt:
-    name: gpg
-    state: present
-
-- name: Trust Proxmox' packaging key on Debian < 12
-  apt_key:
-    data: "{{ lookup('file', pve_release_key) }}"
-    id: "{{ pve_release_key_id }}"
-    state: present
-  when: "ansible_distribution_major_version | int < 12"
-
-- name: Trust Proxmox' packaging key on Debian >= 12
-  copy:
-    src: "proxmox-release-{{ ansible_distribution_release }}.gpg"
-    dest: "/etc/apt/trusted.gpg.d/proxmox-release-{{ ansible_distribution_release }}.gpg"
-    mode: 0644
-  when: "ansible_distribution_major_version | int >= 12"
-
-- name: Remove os-prober package
-  apt:
-    name: os-prober
-    state: absent
-
-- ansible.builtin.import_tasks: remove_enterprise_repos.yml
-  when:
-    - "'pve-no-subscription' in pve_repository_line"
-
-- name: Manage apt repositories
-  block:
-  - name: Add Proxmox repository
-    ansible.builtin.apt_repository:
-      repo: "{{ pve_repository_line }}"
-      filename: proxmox
-      state: present
-    register: _pve_repo
-
-  - name: Add Proxmox Ceph repository
-    ansible.builtin.apt_repository:
-      repo: '{{ pve_ceph_repository_line }}'
-      filename: ceph
-      state: present
-    register: _pve_ceph_repo
-    when: "pve_ceph_enabled | bool"
-  when: "ansible_distribution_major_version | int <= 12"
-
-- name: Manage deb822 repositories
-  block:
-  - name: Add Proxmox repository
-    ansible.builtin.deb822_repository:
-      name: proxmox
-      types: deb
-      uris: "{{ pve_repository.uris }}"
-      suites: "{{ pve_repository.suites }}"
-      components: "{{ pve_repository.components }}"
-      signed_by: /etc/apt/trusted.gpg.d/proxmox-release-{{ ansible_distribution_release }}.gpg
-      state: present
-    register: _pve_repo
-
-  - name: Add Proxmox Ceph repository
-    ansible.builtin.deb822_repository:
-      name: ceph
-      types: deb
-      uris: "{{ pve_ceph_repository.uris }}"
-      suites: "{{ pve_ceph_repository.suites }}"
-      components: "{{ pve_ceph_repository.components }}"
-      signed_by: /etc/apt/trusted.gpg.d/proxmox-release-{{ ansible_distribution_release }}.gpg
-      state: present
-    register: _pve_ceph_repo
-    when: "pve_ceph_enabled | bool"
-
-  - name: Update repositories cache
-    ansible.builtin.apt:
-      update_cache: yes
-    when: _pve_repo is changed or _pve_ceph_repo is changed
-
-  when: "ansible_distribution_major_version | int > 12"
-
-- name: Run apt-get dist-upgrade on repository changes
-  apt:
-    update_cache: yes
-    cache_valid_time: 3600
-    upgrade: dist
-  when: _pve_repo is changed or _pve_ceph_repo is changed
-  retries: 2
-  register: _dist_upgrade
-  until: _dist_upgrade is succeeded
-
-- name: Perform system upgrades
-  apt:
-    update_cache: yes
-    cache_valid_time: 3600
-    upgrade: dist
-  when: "pve_run_system_upgrades | bool"
-  retries: 2
-  register: _system_upgrade
-  until: _system_upgrade is succeeded
-
-- import_tasks: identify_needed_packages.yml
-
-- name: Pin Proxmox kernel to specific version
-  ansible.builtin.copy:
-    content: |
-      Package: proxmox-default-kernel
-      Pin: version {{ pve_default_kernel_version }}
-      Pin-Priority: 1000
-    dest: /etc/apt/preferences.d/proxmox-default-kernel
-  when: pve_default_kernel_version is defined
-
-- name: Ensure preferences exist for kernel pinning only if needed
-  ansible.builtin.file:
-    path: /etc/apt/preferences.d/proxmox-default-kernel
-    mode: '0644'
-    state: "{{ 'file' if pve_default_kernel_version is defined else 'absent' }}"
-
-- name: Install Proxmox VE and related packages
-  apt:
-    update_cache: yes
-    cache_valid_time: 3600
-    name: "{{ _pve_install_packages }}"
-    state: "{{ 'latest' if pve_run_proxmox_upgrades else 'present' }}"
-  retries: 2
-  register: _proxmox_install
-  until: _proxmox_install is succeeded
-
-- block:
-    - ansible.builtin.import_tasks: remove_enterprise_repos.yml
-
-    - name: Remove subscription check wrapper function in web UI
-      ansible.builtin.lineinfile:
-        path: /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
-        line: '        orig_cmd(); return;'
-        insertafter: '^\s+checked_command: function\s?\(orig_cmd\) {$'
-        firstmatch: yes
-        backup: yes
-      when:
-        - "pve_remove_subscription_warning | bool"
-  when:
-    - "'pve-no-subscription' in pve_repository_line"
-
-- import_tasks: pcie_passthrough.yml
+# needs testing
+- ansible.builtin.import_tasks: system/pcie_passthrough.yml
   when: "pve_pcie_passthrough_enabled | bool"
+  tags:
+    - pcie
 
-- import_tasks: kernel_updates.yml
+- name: Update kernels, possibly reboot hosts
+  ansible.builtin.import_tasks: system/kernel_updates.yml
+  tags:
+    - kernel
 
-- import_tasks: ipmi_watchdog.yml
+# needs analysis later
+- ansible.builtin.import_tasks: system/ipmi_watchdog.yml
   when: "pve_watchdog == 'ipmi'"
+  tags:
+    - watchdog
 
-- import_tasks: zfs.yml
-  when: "pve_zfs_enabled | bool"
+## TODO (remove) Needs analysis later, is obsolete when modules are handled during their tasks, 
+#  to enable standalone aka tagged execution
+#- ansible.builtin.import_tasks: kernel_module_cleanup.yml
+#  when: false
 
-- import_tasks: kernel_module_cleanup.yml
+- name: Validate PVE clustering and standalone settings (needs to be done after pve installation)
+  ansible.builtin.import_tasks: prepare/validate_runtime_settings.yml
+  tags:
+    - always
+    - validate_runtime_settings
 
-- import_tasks: pve_cluster_config.yml
+- name: Manage PVE cluster settings
+  ansible.builtin.import_tasks: cluster/pve_cluster.yml
   when: "pve_cluster_enabled | bool"
+  tags:
+    - cluster
 
-- import_tasks: ceph.yml
-  when:
-    - "pve_ceph_enabled | bool"
-    - "inventory_hostname in groups[pve_ceph_nodes]"
+- name: Manage PVE cluster HA groups
+  ansible.builtin.import_tasks: cluster/ha_groups.yml
+  when: "pve_cluster_enabled | bool"
+  tags:
+    - ha_groups
 
-- name: Configure Proxmox pools
-  proxmox_pool:
-    name: "{{ item.name }}"
-    state: "{{ item.state | default('present') }}"
-    comment: "{{ item.comment | default(omit) }}"
-  with_items: "{{ pve_pools }}"
-  when: "not pve_cluster_enabled or (pve_cluster_enabled | bool and inventory_hostname == _init_node)"
-
-- name: Configure Proxmox roles
-  proxmox_role:
-    name: "{{ item.name }}"
-    privileges: "{{ item.privileges }}"
-    state: "{{ item.state | default('present') }}"
-  with_items: "{{ pve_roles }}"
-  when: "not pve_cluster_enabled | bool or (pve_cluster_enabled | bool and inventory_hostname == _init_node)"
-
-- name: Configure Proxmox groups
-  proxmox_group:
-    name: "{{ item.name }}"
-    state: "{{ item.state | default('present') }}"
-    comment: "{{ item.comment | default(omit) }}"
-  with_items: "{{ pve_groups }}"
-  when: "not pve_cluster_enabled or (pve_cluster_enabled | bool and inventory_hostname == _init_node)"
-
-- name: Configure Proxmox user accounts
-  proxmox_user:
-    name: "{{ item.name }}"
-    state: "{{ item.state | default('present') }}"
-    enable: "{{ item.enable | default(omit) }}"
-    groups: "{{ item.groups | default([]) }}"
-    comment: "{{ item.comment | default(omit) }}"
-    email: "{{ item.email | default(omit) }}"
-    firstname: "{{ item.firstname | default(omit) }}"
-    lastname: "{{ item.lastname | default(omit) }}"
-    password: "{{ item.password | default(omit) }}"
-    expire: "{{ item.expire | default(omit) }}"
-  with_items: "{{ pve_users }}"
-  when: "not pve_cluster_enabled | bool or (pve_cluster_enabled | bool and inventory_hostname == _init_node)"
-
-- import_tasks: realms_config.yml
-  when:
-    - not pve_cluster_enabled | bool or (pve_cluster_enabled and inventory_hostname == groups[pve_group][0])
-    - pve_domains_cfg | length > 0
-
-- name: Select ldap-based realms with sync
-  set_fact:
-    pve_ldap_realms_with_sync: |
-      {{ pve_domains_cfg | selectattr('type', 'in', ['ad', 'ldap'])
-                         | selectattr('sync', 'defined') }}
-
-- name: Sync ldap-based realms
-  include_tasks: realms_sync.yml
-  loop: "{{ pve_ldap_realms_with_sync | flatten(levels=1) }}"
-  loop_control:
-    loop_var: pve_ldap_realm
-  when:
-    - not pve_cluster_enabled | bool or (pve_cluster_enabled and inventory_hostname == groups[pve_group][0])
-    - pve_domains_cfg | length > 0
-    - pve_ldap_realm.sync | bool
-
-- name: Configure Proxmox ACLs
-  proxmox_acl:
-    path: "{{ item.path }}"
-    roles: "{{ item.roles }}"
-    state: "{{ item.state | default('present') }}"
-    groups: "{{ item.groups | default([]) }}"
-    users: "{{ item.users | default([]) }}"
-  with_items: "{{ pve_acls }}"
-  when: "not pve_cluster_enabled | bool or (pve_cluster_enabled | bool and inventory_hostname == _init_node)"
-
-- name: Create ZFS Pools
-  zfs:
-    name: "{{ item.pool }}"
-    state: present
-  with_items: "{{ pve_storages }}"
-  when: "item.type == 'zfspool'"
+- name: Configuration of PVE storage pools
   tags: storage
+  block:
+    - ansible.builtin.import_tasks: storage/ceph/legacy/ceph.yml
+      when:
+        - "pve_ceph_enabled | bool"
+        - "pve_cluster_enabled | bool"
+        - "inventory_hostname in pve_ceph_nodes or inventory_hostname_short in pve_ceph_nodes"
+      tags:
+        - ceph
 
-- name: Create ZFS Volumes specified by user
-  zfs:
-    name: "{{ item }}"
-    state: present
-  with_items: "{{ pve_zfs_create_volumes }}"
-  tags: storage
+    - ansible.builtin.import_tasks: storage/ceph/ceph_cluster.yml
+      when:
+        - "pve_ceph_enhanced_enabled | bool"
+        - "pve_cluster_enabled | bool"
+        - "inventory_hostname in pve_ceph_nodes or inventory_hostname_short in pve_ceph_nodes"
+      tags:
+        - ceph
 
-- name: Configure Proxmox Storage
-  proxmox_storage:
-    name: "{{ item.name }}"
-    state: "{{ item.state | default('present') }}"
-    # Globally applicable PVE API arguments
-    content: "{{ item.content | default([]) }}"
-    disable: "{{ item.disable | default(False) }}"
-    nodes: "{{ item.nodes | default(omit) }}"
-    type: "{{ item.type }}"
-    # Remaining PVE API arguments (depending on type) past this point
-    datastore: "{{ item.datastore | default(omit) }}"
-    encryption_key: "{{ item.encryption_key | default(omit) }}"
-    fingerprint: "{{ item.fingerprint | default(omit) }}"
-    password: "{{ item.password | default(omit) }}"
-    path: "{{ item.path | default(omit) }}"
-    username: "{{ item.username | default(omit) }}"
-    pool: "{{ item.pool | default(omit) }}"
-    monhost: "{{ item.monhost | default(omit) }}"
-    maxfiles: "{{ item.maxfiles | default(omit) }}"
-    krbd: "{{ item.krbd | default(omit) }}"
-    server: "{{ item.server | default(omit) }}"
-    export: "{{ item.export | default(omit) }}"
-    options: "{{ item.options | default(omit) }}"
-    vgname: "{{ item.vgname | default(omit) }}"
-    thinpool: "{{ item.thinpool | default(omit) }}"
-    sparse: "{{ item.sparse | default(omit) }}"
-    namespace: "{{ item.namespace | default(omit) }}"
-    domain: "{{ item.domain | default(omit) }}"
-    subdir: "{{ item.subdir | default(omit) }}"
-    share: "{{ item.share | default(omit) }}"
-    shared: "{{ item.shared | default(omit) }}"
-    create_subdirs: "{{ item.create_subdirs | default(omit) }}"
-    is_mountpoint: "{{ item.is_mountpoint | default(omit) }}"
-    snapshot_as_volume_chain: "{{ item.snapshot_as_volume_chain | default(omit) }}"
-  no_log: "{{ pve_no_log }}"
-  with_items: "{{ pve_storages }}"
-  when: "not pve_cluster_enabled | bool or (pve_cluster_enabled | bool and inventory_hostname == _init_node)"
-  tags: storage
+    - name: Setup ZFS storage pools
+      ansible.builtin.import_tasks: storage/zfs/setup.yml
+      when: "pve_zfs_enabled | bool"
+      tags:
+        - zfs
 
-- name: Check datacenter.cfg exists
-  stat:
-    path: "/etc/pve/datacenter.cfg"
-  register: _datacenter_cfg
-  when:
-    - "not pve_cluster_enabled | bool or (pve_cluster_enabled | bool and inventory_hostname == _init_node)"
-    - "pve_datacenter_cfg | length > 0"
+    - name: Configuration of ZFS storage pools
+      ansible.builtin.import_tasks: storage/zfs/pool_conf.yml
+      when: "pve_zfs_enabled | bool"
+      tags:
+        - zfs
 
-- name: Create datacenter.cfg if it does not exist
-  file:
-    path: "/etc/pve/datacenter.cfg"
-    state: "touch"
-    mode: 0640
-  when:
-    - "not pve_cluster_enabled | bool or (pve_cluster_enabled | bool and inventory_hostname == _init_node)"
-    - "pve_datacenter_cfg | length > 0"
-    - "not _datacenter_cfg.stat.exists"
+    - name: Setup additional filesystems
+      ansible.builtin.import_tasks: storage/filesystems.yml
+      tags:
+        - filesystems
 
-- name: Configure datacenter.cfg
-  copy:
-    dest: "/etc/pve/datacenter.cfg"
-    owner: "root"
-    group: "www-data"
-    mode: "0640"
-    content: |
-      {% for k,v in pve_datacenter_cfg.items() %}
-      {{ k }}: {{ v }}
-      {% endfor %}
-  when:
-    - "not pve_cluster_enabled | bool or (pve_cluster_enabled | bool and inventory_hostname == _init_node)"
-    - "pve_datacenter_cfg | length > 0"
+    # NOTICE: Execute after any other storage tasks
+    - name: Manage PVE storage definitions
+      ansible.builtin.import_tasks: storage/storage_pve.yml
+      tags:
+        - storage_pve
 
-- name: Add metric servers
-  proxmox_metric_server:
-    id: "{{ item.id | default(omit) }}"
-    port: "{{ item.port | default(omit) }}"
-    server: "{{ item.server | default(omit) }}"
-    type: "{{ item.type | default(omit) }}"
-    protocol: "{{ item.protocol | default(omit) }}"
-    disable: "{{ item.disable | default(omit) }}"
-    organization: "{{ item.organization | default(omit) }}"
-    bucket: "{{ item.bucket | default(omit) }}"
-    token: "{{ item.token | default(omit) }}"
-    path: "{{ item.path | default(omit) }}"
-    api_path_prefix: "{{ item.api_path_prefix | default(omit) }}"
-    timeout: "{{ item.timeout | default(omit) }}"
-    max_body_size: "{{ item.max_body_size | default(omit) }}"
-    mtu: "{{ item.mtu | default(omit) }}"
-    verify_certificate: "{{ item.verify_certificate | default(omit) }}"
-    state: "{{ item.state | default('present') }}"
-  loop: "{{ pve_metric_servers }}"
-  when: pve_metric_servers is defined and pve_metric_servers | length > 0
+- name: Configure Identity and Access
+  ansible.builtin.import_tasks: access/access.yml
+  tags:
+    - access
+    - iam
 
-- import_tasks: ssl_config.yml
-  when:
-    - "pve_ssl_private_key is defined"
-    - "pve_ssl_certificate is defined"
+- name: Manage PVE datacenter settings
+  ansible.builtin.import_tasks: cluster/datacenter_options.yml
+  tags:
+    - datacenter_cfg
+    - datacenter_options
+
+- name: Configure metric export to monitoring server
+  ansible.builtin.import_tasks: cluster/metric_server.yml
+  tags:
+    - metrics
+
+- name: Manage pveproxy settings
+  ansible.builtin.import_tasks: system/proxy+ssl_config.yml
+  tags:
+    - ssl
+    - pve_proxy

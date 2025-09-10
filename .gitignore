@@ -10,3 +10,13 @@
 fetch/
 .vagrant/
 /.settings/
+
+Vagrantfile                               
+old/                               
+*pycache*                               
+*.pyc                               
+.idea                               
+.vscode                               
+ceph.secret                               
+osd-luks.keys                               
+.env*

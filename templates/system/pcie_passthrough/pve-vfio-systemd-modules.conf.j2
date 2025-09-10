@@ -1,0 +1,15 @@
+
+## This file is created and managed by ansible-role-proxmox task pcie_passthrought
+## Do not change it in any other way, because it will be overwritten
+
+{% if (pve_vfio_modules | length > 0) %}
+{% for modules in pve_vfio_modules %}
+{{ modules }} 
+{% endfor %}
+{% endif %}
+
+{% if (pve_gvtg_modules | length > 0) %}
+{% for modules in pve_gvtg_modules %}
+{{ modules }} 
+{% endfor %}
+{% endif %}

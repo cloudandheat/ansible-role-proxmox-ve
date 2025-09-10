@@ -1,0 +1,180 @@
+---
+- name: Manage Ceph pools
+  when: "inventory_hostname == _ceph_init_node"
+  block:
+    - name: Normalize Ceph pools parameter
+      block:
+        - name: Normalize Ceph pools parameter into list of dicts from list
+          ansible.builtin.set_fact:
+            # transform from ["value",…, {<setting>:<value>,…}] into [{'name':<value>,…, <setting>: <value>,…}]
+            pve_ceph_pools: "{{ pve_ceph_pools | select('mapping') + pve_ceph_pools | reject('mapping') | json_query('[].{name: @}') }}"
+          when:
+            - "pve_ceph_pools is iterable"
+            - "pve_ceph_pools is not mapping"
+            - "pve_ceph_pools | reject('mapping') | length > 0"
+
+        - name: Normalize Ceph pools parameter into list of dicts from mapping
+          ansible.builtin.set_fact:
+            # transform from {<name>:{<setting>: <value>, …}} into [{'name':…, <setting>: <value>, …}]
+            pve_ceph_pools: "{{ pve_ceph_pools | dict2items | json_query('[].merge({name: key}, not_null(value, {name: key}))') }}"
+          when: "pve_ceph_pools is mapping"
+
+        - name: Normalize Ceph pools parameter into empty list if none
+          ansible.builtin.set_fact:
+            pve_ceph_pools: "{{ [] }}"
+          when: "pve_ceph_pools is none"
+
+    - name: Validate Ceph pools parameter
+      block:
+        - name: Ensure that every entry has a name
+          ansible.builtin.assert:
+            that: "item.name | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have a name!"
+          loop: "{{ pve_ceph_pools }}"
+
+    - name: Prepare Ceph pools management
+      block:
+        - name: Query existing Ceph pools
+          ansible.builtin.command: "ceph osd pool ls"
+          register: _ceph_pool_ls_raw
+          changed_when: false
+
+        - name: Extract Ceph pool names
+          ansible.builtin.set_fact:
+            _ceph_pools: "{{ _ceph_pool_ls_raw.stdout_lines }}"
+
+        - name: Query existing CephFS pools
+          ansible.builtin.command: "ceph fs ls --format json"
+          register: _ceph_fs_ls_raw
+          changed_when: false
+
+        - name: Extract CephFS pool names
+          ansible.builtin.set_fact:
+            _ceph_fs_pools:
+              "{{ _ceph_fs_pools | default([]) + item.data_pools + [item.metadata_pool] }}"
+          loop: "{{ _ceph_fs_ls_raw.stdout | from_json }}"
+
+    - name: Create Ceph pools
+      block:
+        - name: Create missing Ceph pools
+          ansible.builtin.command:
+            "pveceph pool create {{ item.name }} {{ item | dict2args(bool2int=true, reject_keys=unsupported_args) }}"
+          vars:
+            unsupported_args: "{{ ['name', 'quota', 'config'] }}"
+          register: _pveceph_pool_create_raw
+          loop: "{{ pve_ceph_pools }}"
+          when: "item.name not in _ceph_pools"
+          changed_when: true
+          failed_when: "_pveceph_pool_create_raw.stderr_lines | length > 0"
+
+    - name: Modify Ceph pools
+      block:
+        - name: Set Ceph pool settings
+          ansible.builtin.command:
+            "pveceph pool set {{ item.name }} {{ item | dict2args(bool2int=true, reject_keys=unsupported_args) }}"
+          vars:
+            unsupported_args: "{{ ['name', 'quota', 'add_storages', 'erasure-coding', 'config'] }}"
+          loop: "{{ pve_ceph_pools }}"
+          when: "item.name in _ceph_pools"
+          changed_when: true
+
+        - name: Set Ceph pool quotas
+          ansible.builtin.command: "ceph osd pool set-quota {{ item.name }} max_bytes {{ (quota | float * 1073741824) | round | int }}"
+          vars:
+            quota: "{{ item.quota | default('0.0') }}"
+          loop: "{{ pve_ceph_pools }}"
+          changed_when: true
+
+        - name: Set Ceph RBD pool config overrides
+          block:
+            - name: Initialize variables
+              ansible.builtin.set_fact:
+                _pve_ceph_pools_config: "{{ [] }}"
+                _rbd_pool_configs: "{{ [] }}"
+
+            - name: Normalize Ceph RBD pool config override parameters
+              block:
+                - name: Normalize Ceph RBD pool config overrides into list of dicts from list
+                  # transform {'name': <pool>, 'config': [{'name': <conf name>, 'value': <conf value>}, …, {<conf name>: <conf value>}, …]}
+                  # into [{'pool': <pool>, 'name': <conf name>, 'value': <conf value>}, …]
+                  ansible.builtin.set_fact:
+                    _pve_ceph_pools_config: "{{ _pve_ceph_pools_config
+                                            + (conf_maps_w_n_v | map('combine', {'pool': item.name}))
+                                            + (conf_maps_other | map('dict2items', key_name='name')
+                                              | flatten | map('combine', {'pool': item.name})) }}"
+                  vars:
+                    conf_maps: "{{ item.config | select('mapping') }}"
+                    conf_maps_w_n_v: "{{ conf_maps | selectattr('name', 'defined') | selectattr('value', 'defined') }}"
+                    conf_maps_other: "{{ conf_maps | rejectattr('name', 'defined') | rejectattr('value', 'defined') }}"
+                  loop: "{{ pve_ceph_pools | selectattr('config', 'defined') }}"
+                  when: "item.config is iterable"
+
+                - name: Normalize Ceph RBD pool config overrides into list of dicts from mapping
+                  # transform {'name': <pool>, 'config': {<conf name>: <conf value>, …}}
+                  # into [{'pool': <pool>, 'name': <conf name>, 'value': <conf value>}, …]
+                  ansible.builtin.set_fact:
+                    _pve_ceph_pools_config:
+                      "{{ _pve_ceph_pools_config + item.config | dict2items(key_name='name') | map('combine', {'pool': item.name}) }}"
+                  loop: "{{ pve_ceph_pools | selectattr('config', 'defined') }}"
+                  when: "item.config is mapping"
+
+                - name: Display normalized Ceph RBD pool config override parameter
+                  ansible.builtin.debug:
+                    msg: "_pve_ceph_pools_config: {{ _pve_ceph_pools_config }}"
+
+            - name: Prepare Ceph RBD pool config overrides
+              block:
+                - name: Query RBD pool config overrides
+                  ansible.builtin.command: "rbd config pool ls {{ item }} --format json"
+                  register: _rbd_pool_config_ls_raws
+                  loop: "{{ pve_ceph_pools | map(attribute='name') }}"
+                  changed_when: false
+
+                - name: Extract RBD pool config overrides
+                  ansible.builtin.set_fact:
+                    # _rbd_pool_configs: [{'pool': <pool>, 'name': <conf name>, 'value': <conf value>, 'source': 'pool'}, …]
+                    _rbd_pool_configs: "{{ _rbd_pool_configs
+                                        + item.stdout | from_json | selectattr('source', '==', 'pool') | map('combine', {'pool': item.item}) }}"
+                  loop: "{{ _rbd_pool_config_ls_raws.results }}"
+                  loop_control:
+                    label: "{{ item.item }}"
+
+            - name: Set Ceph RBD pool config overrides
+              block:
+                - name: Set missing Ceph RBD pool config overrides
+                  ansible.builtin.command: "rbd config pool set {{ item.pool }} {{ item.name }} \"{{ item.value }}\""
+                  vars:
+                    curr_pool_conf: "{{ _rbd_pool_configs | selectattr('pool', '==', item.pool) }}"
+                  loop: "{{ _pve_ceph_pools_config }}"
+                  when: "curr_pool_conf | selectattr('name', '==', item.name) | selectattr('value', '==', (item.value | string)) | length == 0"
+                  changed_when: true
+
+            - name: Remove Ceph RBD pool config overrides
+              block:
+                - name: Remove non-declared Ceph RBD pool config overrides
+                  ansible.builtin.command: "rbd config pool rm {{ item.pool }} {{ item.name }}"
+                  vars:
+                    curr_pool_conf: "{{ _pve_ceph_pools_config | selectattr('pool', '==', item.pool) }}"
+                  loop: "{{ _rbd_pool_configs }}"
+                  when: "curr_pool_conf | selectattr('name', '==', item.name) | length == 0"
+                  changed_when: true
+
+    - name: Remove Ceph pools
+      when: "pve_ceph_pool_destroy"
+      block:
+        # TODO pveceph deletes actively mirrored pools, but controlled removal would be more preferable
+        - name: Collect declared Ceph pools
+          ansible.builtin.set_fact:
+            _ceph_declared_pools:
+              "{{ _ceph_declared_pools | default([]) + (pve_ceph_pools | map(attribute='name'))
+              + _ceph_fs_pools | default([]) + pve_ceph_default_pools }}"
+
+        - name: Collect non-declared Ceph pools
+          ansible.builtin.set_fact:
+            _ceph_undeclared_pools: "{{ _ceph_pools | difference(_ceph_declared_pools) }}"
+
+        - name: Destroy undeclared Ceph pools
+          ansible.builtin.command:
+            "pveceph pool destroy {{ item }} --remove_storages 1 {{ pve_ceph_pool_force_destroy | ternary('--force 1', '') }}"
+          loop: "{{ _ceph_undeclared_pools | default([]) }}"
+          changed_when: true

@@ -993,6 +993,8 @@ foerkede ([@foerkede](https://github.com/foerkede)) - ZFS storage support
 Guiffo Joel ([@futuriste](https://github.com/futuriste)) - Pool configuration support  
 Adam Delo ([@ol3d](https://github.com/ol3d)) - PCIe Passthrough Support
 Antoine Thys ([@thystips](https://github.com/thystips)) - Metric Servers Support
+Lucas T ([@blimpt](https://github.com/BlimpT)) - Support for declarative handling
+github.com/webermar
 
 [Full list of contributors](https://github.com/lae/ansible-role-proxmox/graphs/contributors)
 
@@ -1008,3 +1010,10 @@ Antoine Thys ([@thystips](https://github.com/thystips)) - Metric Servers Support
 [datacenter-cfg]: https://pve.proxmox.com/wiki/Manual:_datacenter.cfg
 [ceph_volume]: https://github.com/ceph/ceph-ansible/blob/master/library/ceph_volume.py
 [ha-group]: https://pve.proxmox.com/wiki/High_Availability#ha_manager_groups
+
+===========
+
+Applies to this fork of https://github.com/lae/ansible-role-proxmox
+
+For documentation on variables, see defaults/main.yml
+For considerations on structure, see STYLE.md

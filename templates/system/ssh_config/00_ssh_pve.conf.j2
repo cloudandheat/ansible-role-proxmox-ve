@@ -1,0 +1,13 @@
+##################################################################################################
+## This file is created and managed by ansible-role-proxmox, task: 'system/ssh_config.yml'      ##
+## Do not change it in any other way, because any changes will be overwritten.                  ##
+##################################################################################################
+{% for host in groups[pve_group] %}
+Host {{ hostvars[host].pve_cluster_ssh_addrs | join(" ") }}
+   IdentityFile /root/.ssh/id_{{ pve_ssh_key_type }}
+   Port {{ pve_ssh_port }}
+   HostKeyAlias {{ host }}
+#   UserKnownHostsFile
+
+{% endfor %}
+

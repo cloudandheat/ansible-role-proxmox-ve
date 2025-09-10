@@ -1,0 +1,113 @@
+---
+# TODO NOT WORKING WIP!
+# TODO NOT WORKING STUB!
+- name: Manage PVE user token
+  tags: users
+  block:
+    - name: Normalize PVE user token parameter
+      block:
+        - name: Normalize PVE user parameter into list of dicts from list
+          ansible.builtin.set_fact:
+            # transform from ["value",…, {<setting>:<value>,…}] into [{'userid':<value>,…, <setting>: <value>,…}]
+            pve_users: "{{ pve_users | select('mapping') + pve_users | reject('mapping') | json_query('[].{userid: @}') }}"
+          when:
+            - "pve_users is iterable"
+            - "pve_users is not mapping"
+            - "pve_users | reject('mapping') | length > 0"
+
+        . debug:
+            var: pve_users
+        - meta: end_play
+        - name: Normalize PVE user parameter into list of dicts from mapping
+          ansible.builtin.set_fact:
+            # transform from {<userid>:{<setting>: <value>, …}} into [{'userid':…, <setting>: <value>, …}]
+            pve_users: "{{ pve_users | dict2items | json_query('[].merge({userid: key}, not_null(value, {userid: key}))') }}"
+          when: "pve_users is mapping"
+
+        - name: Normalize PVE user parameter into empty list if none
+          ansible.builtin.set_fact:
+            pve_users: "{{ [] }}"
+          when: "pve_users is none"
+
+        - name: Filter PVE user parameter for token attribute
+          ansible.builtin.set_fact:
+            pve_user_token: "{{ pve_users | selectattr('token', 'defined') | json_query('token[].merge({userid: userid}, @)') }}"
+
+    - name: Validate PVE user token parameter
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Ensure that every entry has a userid
+          ansible.builtin.assert:
+            that: "item.userid | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have a userid!"
+          loop: "{{ pve_users }}"
+
+        - name: Ensure that every userid is valid
+          ansible.builtin.assert:
+            that: "item.userid is match('[-.\\w]+@[-.\\w]+')"
+            msg: "Userid of '{{ item }}' is not in a <user-name>@<realm-name> format or contains invalid characters (only [-.A-z0-9_])!"
+          loop: "{{ pve_users }}"
+
+    - name: Prepare PVE user management
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Query PVE user token
+          ansible.builtin.command: "pvesh get /access/users --output-format json"
+          register: _pve_users_raw
+          changed_when: false
+
+        - name: Normalize PVE user token query
+          ansible.builtin.set_fact:
+            _pve_users: "{{ _pve_users_raw.stdout | default('[]', true) | from_json }}"
+
+        # NOTICE: Don't manage synced (=realm) users.
+        - name: Filter PVE user token query
+          ansible.builtin.set_fact:
+            _pve_users: "{{ _pve_users | selectattr('realm-type', 'undefined') }}"
+
+    - name: Remove non-declared PVE user token
+      when: "inventory_hostname == _init_node"
+      tags: users_remove
+      block:
+        - name: Remove PVE user token
+          ansible.builtin.command: "pvesh delete /access/users/{{ item.userid }}"
+          loop: "{{ _pve_users | rejectattr('userid', 'in', pve_users | map(attribute='userid')) }}"
+          when: "item.userid != 'root@pam'" # NOTICE: For clean log output, removing 'root@pam' is (a) safe (no-op).
+          changed_when: true
+
+    - name: Create missing PVE user token
+      when: "inventory_hostname == _init_node"
+      tags: users_create
+      block:
+        - name: Create PVE user token
+          ansible.builtin.command:
+            "pvesh create /access/users {{ item | dict2args(bool2int=true) }}"
+          loop: "{{ pve_users | rejectattr('userid', 'in', _pve_users | map(attribute='userid')) }}"
+          changed_when: true
+
+    - name: Modify existing PVE user token
+      when: "inventory_hostname == _init_node"
+      tags: users_modify
+      block:
+        - name: Add defaults resetting attributes to PVE user token parameter
+          ansible.builtin.set_fact:
+            _pve_users_res: "{{ _pve_users_res | default([]) + [item | combine(upd_item)] }}"
+          vars:
+            upd_item: "{{ {'comment': usr_comment, 'email': usr_email, 'enable': usr_enable, 'expire': usr_expire,
+                           'firstname': usr_first, 'lastname': usr_last, 'groups': usr_groups, 'keys': usr_keys} }}"
+            usr_comment: "{{ item.comment | default('\"\"', true) }}"
+            usr_email: "{{ item.email | default('\"\"', true) }}"
+            usr_enable: "{{ item.enable | default(true, true) }}"
+            usr_expire: "{{ item.expire | default(0, true) }}"
+            usr_first: "{{ item.firstname | default('\"\"', true) }}"
+            usr_last: "{{ item.lastname | default('\"\"', true) }}"
+            usr_groups: "{{ item.groups | default('\"\"', true) }}"
+            # NOTICE: Attribute name 'keys' shadows built-in function name 'keys', thus returning said function if 'keys' is otherwise undefined as attribute.
+            usr_keys: "{{ item['keys'] is string | ternary(item['keys'], '\"\"') }}"
+          loop: "{{ pve_users | selectattr('userid', 'in', _pve_users | map(attribute='userid')) }}"
+
+        - name: Modify PVE user token
+          ansible.builtin.command:
+            "pvesh set /access/users/{{ item.userid }} {{ item | dict2args(bool2int=true, reject_keys=['userid', 'password']) }}"
+          loop: "{{ _pve_users_res | default([]) }}"
+          changed_when: true

@@ -1,0 +1,34 @@
+##################################################################################################
+## This file is created and managed by ansible-role-proxmox, task: 'system/name_resolution.yml' ##
+## Do not change it in any other way, because any changes will be overwritten.                  ##
+##################################################################################################
+
+# Loopback interfaces
+127.0.0.1 {{ "\t" }} localhost localhost.localdomain localhost4 localhost4.localdomain4 ip4-localhost ip4-loopback
+::1       {{ "\t" }} localhost localhost.localdomain localhost6 localhost6.localdomain6 ip6-localhost ip6-loopback
+
+# The following lines are desirable for IPv6 capable hosts
+fe00::0 {{ "\t" }} ip6-localnet
+ff00::0 {{ "\t" }} ip6-mcastprefix
+ff02::1 {{ "\t" }} ip6-allnodes
+ff02::2 {{ "\t" }} ip6-allrouters
+ff02::3 {{ "\t" }} ip6-allhosts
+
+{% if not pve_cluster_enabled %}
+# IPv4 localhost resolution
+{% for ipv4_address in ansible_all_ipv4_addresses -%}
+{{ ipv4_address }} {{ "\t" }} {{ ansible_hostname }} {{ ansible_hostname }}.{{ pve_domain }} {{ ansible_fqdn }}
+{% endfor %}
+# IPv6 localhost resolution
+{% for ipv6_address in ansible_all_ipv6_addresses -%}
+{{ ipv6_address }} {{ "\t" }} {{ ansible_hostname }} {{ ansible_hostname }}.{{ pve_domain }} {{ ansible_fqdn }}
+{% endfor %}
+{% endif %}
+
+{% if pve_cluster_enabled -%}
+# PVE cluster host resolution
+{% for host in groups[pve_group] -%}
+{{ hostvars[host].pve_cluster_addr0 }} {{ "\t" }} {{ hostvars[host].ansible_hostname }} {{ hostvars[host].ansible_hostname }}.{{ pve_domain }} {{ hostvars[host].ansible_fqdn }}
+{% endfor %}
+{% endif %}
+

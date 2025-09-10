@@ -1,0 +1,540 @@
+---
+# See GUIDE https://pve.proxmox.com/wiki/Ceph_RBD_Mirroring
+# AND https://docs.ceph.com/en/reef/rbd/rbd-mirroring/#pool-configuration
+# AND https://docs.redhat.com/en/documentation/red_hat_ceph_storage/4/html/block_device_guide/mirroring-ceph-block-devices
+# TODO: can be improved, i.e. by adding keyring(s) to ceph-key store,
+# cleanup of left over files like other cluster ceph confs and keyrings
+# delete left-over ceph auth entries
+# different clusters with the same name are not supported (could be solved by comparing fsids in ceph confs)
+# Maybe: "To enable exclusive-lock and journaling on all new images by default,
+#         add the following setting to the Ceph configuration file: rbd_default_features = 125"
+
+# TODO: FIXME: There will be errors if role is run on target cluster before it is run on source cluster!
+
+# TODO was passiert mit non primary images when mirror gelöscht? auto primary?
+#
+# TODO was passiert wenn rbd-daemon gestoppt? zugriff auf pool noch da? images noch da?
+
+- name: Manage Ceph RBD pool mirroring
+  block:
+    - name: Normalize Ceph RBD pool mirror parameter
+      block:
+        - name: Normalize Ceph RBD pool mirror parameter into list of dicts from mapping
+          ansible.builtin.set_fact:
+            # transform from {<pool>:{<setting>: <value>, …}} into [{'pool':…, <setting>: <value>, …}]
+            pve_rbd_mirrors: "{{ pve_rbd_mirrors | dict2items | json_query('[].merge({pool: key}, not_null(value, {pool: key}))') }}"
+          when: "pve_rbd_mirrors is mapping"
+
+        - name: Normalize Ceph RBD pool mirror parameter into empty list if none
+          ansible.builtin.set_fact:
+            pve_rbd_mirrors: "{{ [] }}"
+          when: "pve_rbd_mirrors is none"
+
+    - name: Validate Ceph RBD pool mirror parameter
+      when: "inventory_hostname == _ceph_init_node" # run only once per cluster
+      block:
+        - name: Ensure every entry has a pool
+          ansible.builtin.assert:
+            that: "item.pool | default(false, true) is not false"
+            msg: "RBD mirror definition '{{ item }}' must declare a pool!"
+          loop: "{{ pve_rbd_mirrors }}"
+
+        - name: Ensure source and target cluster names don't contain invalid symbols
+          ansible.builtin.assert:
+            that:
+              - "item.source is match('^[a-zA-Z0-9_.-]+$')"
+              - "item.target is match('^[a-zA-Z0-9_.-]+$')"
+            msg: "RBD mirror cluster source '{{ item.source }}' or target '{{ item.target }}'
+                  contains invalid symbols (not in [a-zA-Z0-9_.-])!"
+          loop: "{{ pve_rbd_mirrors }}"
+
+    - name: Prepare Ceph RBD pool mirror management
+      when: "inventory_hostname == _ceph_init_node" # run only once per cluster
+      block:
+        - name: Query existing Ceph pools
+          ansible.builtin.command: "ceph osd pool ls"
+          register: _ceph_pools_raw
+          changed_when: false
+
+        - name: Extract existing Ceph pool from query
+          ansible.builtin.set_fact:
+            _ceph_pools: "{{ _ceph_pools_raw.stdout_lines | default([]) | difference(pve_ceph_default_pools) }}"
+
+        - name: Query pool mirrors
+          ansible.builtin.command: "rbd mirror pool info {{ item }} --format json"
+          loop: "{{ _ceph_pools | list }}"
+          register: _rbd_mirror_info_raw
+          changed_when: false
+          timeout: 10 # TODO this task hangs sometimes?
+
+        - name: Normalize RBD pool mirror info
+          ansible.builtin.set_fact:
+            _rbd_mirror_pool_info:
+              "{{ _rbd_mirror_pool_info | default({}) | combine({item.item: item.stdout | default('{}') | from_json}) }}"
+          loop: "{{ _rbd_mirror_info_raw.results }}"
+          loop_control:
+            label: "{{ item.item }}"
+
+        - debug:
+            msg: "_rbd_mirror_pool_info: {{ _rbd_mirror_pool_info | default('UNDEF') }}"
+
+        - name: Collect new RBD pool mirrors
+          ansible.builtin.set_fact:
+            _new_rbd_mirror_pools: "{{ _new_rbd_mirror_pools | default([]) + [item.pool] }}"
+          loop: "{{ pve_rbd_mirrors | default([]) }}"
+          when: "_rbd_mirror_pool_info[item].mode | default('') == 'disabled'"
+
+        - name: Collect undeclared RBD mirror pools
+          ansible.builtin.set_fact:
+            _undeclared_mirror_pools: "{{ _undeclared_mirror_pools | default([]) + [item] }}"
+          loop: "{{ _ceph_pools | list }}"
+          when:
+            - "_rbd_mirror_pool_info[item].mode is defined"
+            - "_rbd_mirror_pool_info[item].mode != 'disabled'"
+#            - "item not in (pve_rbd_mirrors | map(attribute='pool'))"
+            - "pve_rbd_mirrors | selectattr('pool', 'equalto', item) | length == 0"
+
+        - debug:
+            msg: "_undeclared_mirror_pools: {{ _undeclared_mirror_pools | default('UNDEF') }}"
+
+    - name: Remove undeclared mirror pools
+      when:
+        - "pve_rbd_mirror_remove | bool"
+        - "inventory_hostname == _ceph_init_node" # run only once per cluster
+      block:
+        - name: Collect images in undeclared pools
+          ansible.builtin.command: "rbd ls {{ item }} --format json"
+          register: _rbd_ls_undeclared_raw
+          loop: "{{ _undeclared_mirror_pools | default([]) }}"
+          changed_when: false
+
+        - name: Normalize undeclared RBD pool ls info
+          ansible.builtin.set_fact:
+            _rbd_mirror_pool_ls:
+              "{{ _rbd_mirror_pool_ls | default({}) | combine({item.item: item.stdout | default('{}') | from_json}) }}"
+          loop: "{{ _rbd_ls_undeclared_raw.results }}"
+
+        - debug:
+            msg: "_rbd_mirror_pool_ls: {{ _rbd_mirror_pool_ls | default('UNDEF') }}"
+
+        - name: Collect RBD pools and images as tuples
+          ansible.builtin.set_fact:
+            _rbd_mirror_pools_images:
+              "{{ _rbd_mirror_pools_images | default([]) + ([item.key] | product(item.value)) }}"
+          loop: "{{ _rbd_mirror_pool_ls | default({}) | dict2items }}"
+
+        - name: Collect status of images
+          ansible.builtin.command: "rbd mirror image status {{ item[0] }}/{{ item[1] }} --format json"
+          register: _rbd_mirror_image_status_raw
+          loop: "{{ _rbd_mirror_pools_images | default([]) }}"
+          failed_when: "_rbd_mirror_image_status_raw.rc not in [0,22]" # rc == 22 == "rbd: mirroring not enabled on the image"
+          changed_when: false
+
+        - name: Normalize pool images status info
+          ansible.builtin.set_fact:
+            _rbd_mirror_image_status:
+              "{{ _rbd_mirror_image_status | default({}) | combine({item.item[1]: item.stdout | default('{}', true) | from_json}) }}"
+          loop: "{{ _rbd_mirror_image_status_raw.results }}"
+
+        - debug:
+            msg: "_rbd_mirror_image_status: {{ _rbd_mirror_image_status | default('UNDEF') }}"
+
+        - name: Disable mirroring for images in undeclared mirror pools
+          ansible.builtin.command: "rbd mirror image disable --force {{ item[0] }}/{{ item[1] }}"
+          register: _rbd_mirror_image_disable_raw
+          loop: "{{ _rbd_mirror_pools_images | default([]) }}"
+#          failed_when: "_rbd_mirror_image_disable_raw.rc not in [0,22]" # rc == 22 == "cannot disable mirroring in the current pool mirroring mode"
+          when:
+            - "_rbd_mirror_image_status[item[1]] | default({}) | length > 0" # has status => mirror is enabled
+            - "_rbd_mirror_pool_info[item[0]].mode | default('') == 'image'" # pool mirror mode must be 'image', prevent rc == 22
+          changed_when: true
+
+        - name: Collect mirror peers on undeclared mirror pools as tuples
+          ansible.builtin.set_fact:
+            _undeclared_rbd_mirror_peers:
+              "{{ _undeclared_rbd_mirror_peers | default([]) + ([item] | product(_rbd_mirror_pool_info[item].peers)) }}"
+          loop: "{{ _undeclared_mirror_pools | default([]) }}"
+
+        - debug:
+            msg: "_undeclared_rbd_mirror_peers: {{ _undeclared_rbd_mirror_peers | default('UNDEF') }}"
+
+        - name: Remove mirror peers on undeclared mirror pools
+          ansible.builtin.command: "rbd mirror pool peer remove {{ item[0] }} {{ item[1].uuid }}"
+#          register: _rbd_pool_peer_remove_raw
+          loop: "{{ _undeclared_rbd_mirror_peers | default([]) }}"
+          changed_when: true
+
+        - name: Disable mirroring on undeclared mirror pools
+          ansible.builtin.command: "rbd mirror pool disable {{ item }}"
+#          register: _rbd_pool_disable_raw
+          loop: "{{ _undeclared_mirror_pools | default([]) }}"
+          changed_when: true
+
+        - name: Remove secondary images from undeclared mirror pools
+          ansible.builtin.command: "rbd remove {{ item[0] }}/{{ item[1] }}"
+          register: _rbd_remove_raw
+          loop: "{{ _rbd_mirror_pools_images | default([]) }}"
+          failed_when: "_rbd_remove_raw.rc not in [0, 2]" # rc == 2 == image does not exist (anymore)
+          when:
+            - "pve_remove_secondary_images | bool"
+            - "_rbd_mirror_image_status[item[1]].state | default('') is regex('replaying')"
+          changed_when: true
+
+      # TODO invalidate source peer ceph auth keyrings on pool removal, parse ceph auth ls, remove accordingly
+    #    - name: Remove source cluster ceph auth peer keyring for removed pool mirrors
+    #      ansible.builtin.command: "ceph auth rm client.rbd-mirror-peer-{{ item.target }}-{{ item.pool }}"
+    #      loop: "{{ pve_rbd_mirrors }}"
+    #      when:
+    #        - "item.pool in (_undeclared_mirror_pools | default([])" # --> always false
+    #        - "item.source == pve_group"
+    #      changed_when: true
+
+    - name: Set up RBD pool mirroring
+      block:
+        - name: Prepare mirror pool peering
+          vars:
+            # NOTICE: source and target aren't bijective, meaning that multiple sources or targets
+            # can be mirrored to multiple sources and targets implicating different credentials,
+            # which must be made distinct by naming convention of "target"-"pool".
+            # Another option would be "source"-"target" but this would imply reuse of credentials for different pools
+            # by the same source/target cluster relation.
+            item_mirror_peer_client: "client.rbd-mirror-peer-{{ item.target }}-{{ item.pool }}"
+            item_item_mirror_peer_client: "client.rbd-mirror-peer-{{ item.item.target }}-{{ item.item.pool }}"
+            item_peer_keyring_file: "{{ item_mirror_peer_client }}.keyring"
+            item_item_peer_keyring_file: "{{ item_item_mirror_peer_client }}.keyring"
+          when: "inventory_hostname == _ceph_init_node" # run only once per cluster
+          block:
+            - name: Get or create target cluster mirror peer keyring(s) on source cluster(s)
+              ansible.builtin.command:
+                "ceph auth get-or-create {{ item_mirror_peer_client }}
+                mon 'profile rbd-mirror-peer' osd 'profile rbd' -o {{ filepath }}"
+              args:
+                creates: "{{ filepath }}"
+              vars:
+                filepath: "/etc/pve/priv/{{ item.target }}.{{ item_peer_keyring_file }}"
+              loop: "{{ pve_rbd_mirrors }}"
+              when: "item.source == pve_group"
+
+            - name: Transfer mirror peer keyrings between cluster(s)
+              block:
+                # NOTICE: This slurp-copy-move Workaround is needed because the Ansible copy module
+                # CAN NOT directly move files to /etc/pve (which is a FUSE device!).
+                # posix.synchronize module will not work because of security concerns.
+                # Also, this role works by rerunning it in isolated networks where not all cluster nodes
+                # are reachable at the same time, making it necessary to temporarily save files on a temp host/control node.
+                - name: Read target cluster mirror peer keyring file(s) from source cluster(s)
+                  ansible.builtin.slurp:
+                    src: "/etc/pve/priv/{{ item.target }}.{{ item_peer_keyring_file }}"
+                  register: _rbd_mirror_peer_keyrings
+                  loop: "{{ pve_rbd_mirrors }}"
+                  when: "item.source == pve_group"
+
+                - name: Copy mirror peer keyring(s) to temp location on target cluster directly
+                  ansible.builtin.copy:
+                    # NOTICE: file name changes explicitly from "target" to "source" on target cluster.
+                    dest: "/tmp/{{ item.source }}.{{ item_peer_keyring_file }}"
+                    content: "{{ src_cluster_result.content | b64decode }}"
+                    follow: true
+                    mode: "0600"
+                    owner: "root"
+                    group: "www-data"
+                  loop: "{{ pve_rbd_mirrors }}"
+                  vars:
+                    src_cluster_init_node: "{{ hostvars[groups[item.source][0]]._ceph_init_node }}"
+                    src_cluster_results: "{{ hostvars[src_cluster_init_node]._rbd_mirror_peer_keyrings.results }}"
+                    src_cluster_result: "{{ src_cluster_results
+                                            | selectattr('item.pool', 'equalto', item.pool)
+                                            | selectattr('item.target', 'equalto', pve_group)
+                                            | first }}"
+                  when:
+                    - "item.target == pve_group"
+                    - "item.tmp_file_host is not defined"
+                    - "src_cluster_init_node is defined"
+
+                # TODO maybe encrypt keyring file on temporary host
+                - name: Save target cluster mirror peer keyring file(s) on temporary host
+                  ansible.builtin.copy:
+                    dest: "{{ item.item.tmp_file_dir | default('/tmp') }}/{{ item.item.target }}.{{ item_item_peer_keyring_file }}"
+                    content: "{{ item.content | b64decode }}"
+                    mode: "0644"
+                  delegate_to: "{{ item.item.tmp_file_host }}"
+                  loop: "{{ _rbd_mirror_peer_keyrings.results }}"
+                  when:
+                    - "item.item.source == pve_group"
+                    - "item.item.tmp_file_host is defined"
+
+                - name: Read target cluster mirror peer keyring file(s) from temporary host
+                  ansible.builtin.slurp:
+                    src: "{{ item.tmp_file_dir | default('/tmp') }}/{{ item.target }}.{{ item_peer_keyring_file }}"
+                  register: _rbd_mirror_peer_keyrings
+                  delegate_to: "{{ item.tmp_file_host }}"
+                  loop: "{{ pve_rbd_mirrors }}"
+                  when:
+                    - "item.target == pve_group"
+                    - "item.tmp_file_host is defined"
+
+                - name: Delete temporary mirror peer keyring(s) on temporary host
+                  ansible.builtin.file:
+                    path: "{{ item.tmp_file_dir | default('/tmp') }}/{{ item.target }}.{{ item_peer_keyring_file }}"
+                    state: absent
+                  delegate_to: "{{ item.tmp_file_host }}"
+                  loop: "{{ pve_rbd_mirrors }}"
+                  when:
+                    - "item.target == pve_group"
+                    - "item.tmp_file_host is defined"
+
+                - name: Copy mirror peer keyring(s) to temp location on target cluster
+                  ansible.builtin.copy:
+                    # NOTICE: file name changes explicitly from "target" to "source" on target cluster.
+                    dest: "/tmp/{{ item.item.source }}.{{ item_item_peer_keyring_file }}"
+                    content: "{{ item.content | b64decode }}"
+                    follow: true
+                    mode: "0600"
+                    owner: "root"
+                    group: "www-data"
+                  loop: "{{ _rbd_mirror_peer_keyrings.results }}"
+                  when:
+                    - "item.item.target == pve_group"
+                    - "item.item.tmp_file_host is defined"
+
+            - name: Move mirror peer keyring(s) to Corosync location on target cluster
+              ansible.builtin.command: "mv {{ src }} {{ dst }}"
+              args:
+                creates: "{{ dst }}"
+              vars:
+                src: "/tmp/{{ item.source }}.{{ item_peer_keyring_file }}"
+                dst: "/etc/pve/priv/{{ item.source }}.{{ item_peer_keyring_file }}"
+              become: true
+              loop: "{{ pve_rbd_mirrors }}"
+              when: "item.target == pve_group"
+              changed_when: true
+
+            - name: Transfer Ceph cluster confs between cluster(s)
+              block:
+                # NOTICE: This slurp-copy-move Workaround is needed because the Ansible copy module
+                # CAN NOT directly move files to /etc/pve (which is a FUSE device!).
+                # synchronize module will not work because of security concerns.
+                # Also, this role works by rerunning it in isolated networks where not all cluster nodes
+                # are reachable at the same time, making it necessary to temporarily save files on a temp host/control node.
+                - name: Read ceph.conf from source cluster(s)
+                  ansible.builtin.slurp:
+                    src: "/etc/pve/ceph.conf"
+                  register: _rbd_mirror_src_ceph_conf
+#                  when: "pve_group in (pve_rbd_mirrors | map(attribute='source'))"
+                  when: "pve_rbd_mirrors | selectattr('source', 'equalto', pve_group) | length > 0"
+
+                - name: Copy source cluster ceph.conf file to temp location on target cluster(s) directly
+                  ansible.builtin.copy:
+                    dest: "/tmp/{{ item.source }}.conf"
+                    content: "{{ src_ceph_conf.content | b64decode }}"
+                    follow: true
+                    mode: "0640"
+                    owner: "root"
+                    group: "www-data"
+                  loop: "{{ pve_rbd_mirrors }}"
+                  vars:
+                    src_cluster_init_node: "{{ hostvars[groups[item.source][0]]._ceph_init_node }}"
+                    src_ceph_conf: "{{ hostvars[src_cluster_init_node]._rbd_mirror_src_ceph_conf }}"
+                  when:
+                    - "item.target == pve_group"
+                    - "item.tmp_file_host is not defined"
+
+                - name: Save source cluster ceph.conf file(s) on temporary host
+                  ansible.builtin.copy:
+                    dest: "{{ item.tmp_file_dir | default('/tmp') }}/{{ item.source }}_ceph.conf"
+                    content: "{{ _rbd_mirror_src_ceph_conf.content | b64decode }}"
+                    mode: "0644"
+                  delegate_to: "{{ item.tmp_file_host }}"
+                  loop: "{{ pve_rbd_mirrors }}"
+                  when:
+                    - "item.source == pve_group"
+                    - "item.tmp_file_host is defined"
+
+                - name: Read source cluster ceph.conf file(s) from temporary host
+                  ansible.builtin.slurp:
+                    src: "{{ item.tmp_file_dir | default('/tmp') }}/{{ item.source }}_ceph.conf"
+                  register: _rbd_mirror_src_ceph_confs
+                  delegate_to: "{{ item.tmp_file_host }}"
+                  loop: "{{ pve_rbd_mirrors }}"
+                  when:
+                    - "item.target == pve_group"
+                    - "item.tmp_file_host is defined"
+
+                - name: Delete temporary source cluster ceph.conf file(s) on temporary host
+                  ansible.builtin.file:
+                    path: "{{ item.tmp_file_dir | default('/tmp') }}/{{ item.source }}_ceph.conf"
+                    state: absent
+                  delegate_to: "{{ item.tmp_file_host }}"
+                  loop: "{{ pve_rbd_mirrors }}"
+                  when:
+                    - "item.target == pve_group"
+                    - "item.tmp_file_host is defined"
+
+                - name: Copy source cluster ceph.conf file to temp location on target cluster(s)
+                  ansible.builtin.copy:
+                    dest: "/tmp/{{ item.item.source }}.conf"
+                    content: "{{ item.content | b64decode }}"
+                    follow: true
+                    mode: "0640"
+                    owner: "root"
+                    group: "www-data"
+                  loop: "{{ _rbd_mirror_src_ceph_confs.results }}"
+                  when:
+                    - "item.item.target == pve_group"
+                    - "item.item.tmp_file_host is defined"
+
+            - name: Move source cluster ceph.conf file to Corosync location on target cluster(s)
+              ansible.builtin.command: "mv {{ src }} {{ dst }}"
+              args:
+                creates: "{{ dst }}"
+              vars:
+                filename: "{{ item.source }}.conf"
+                src: "/tmp/{{ filename }}"
+                dst: "/etc/pve/{{ filename }}"
+              become: true
+              loop: "{{ pve_rbd_mirrors }}"
+              when: "item.target == pve_group"
+              changed_when: true
+
+            ### RBD Pool Setup ###
+            - name: Create missing Ceph rbd pools if enabled
+              ansible.builtin.command: "pveceph pool create {{ item.pool }} --add_storages 1 --application rbd"
+              loop: "{{ pve_rbd_mirrors }}"
+              when:
+                - "item.create_pools | default(false, true) | bool"
+                - "item.pool not in _ceph_pools"
+                - "pve_group in [item.source, item.target]"
+              changed_when: true
+
+            - name: Enable RBD image mirroring on pools
+              ansible.builtin.command:
+                "rbd mirror pool enable {{ item.pool }} {{ item.mode | default('pool', true) }}"
+              loop: "{{ pve_rbd_mirrors }}"
+              when: "pve_group in [item.source, item.target]"
+              changed_when: true
+
+            - name: Add peer on target cluster(s)
+              ansible.builtin.command:
+                "rbd mirror pool peer add {{ item.pool }} {{ item_mirror_peer_client }}@{{ item.source }}" # maybe append explicit "--direction rx-only"
+              loop: "{{ pve_rbd_mirrors }}"
+              when:
+                - "item.target == pve_group"
+#                - "_rbd_mirror_pool_info[item.pool].peers | default([]) | length == 0"
+#                - "item.source not in _rbd_mirror_pool_info[item.pool].peers | default([]) | map(attribute='site_name')"
+                - "_rbd_mirror_pool_info[item.pool].peers | default([]) | selectattr('site_name', 'equalto', item.source) | length == 0"
+              changed_when: true
+
+        - name: Setup rbd-mirror daemon
+#          when: "pve_group in (pve_rbd_mirrors | map(attribute='target'))"
+          when: "pve_rbd_mirrors | selectattr('target', 'equalto', pve_group) | length > 0"
+          vars:
+            local_mirror_service_name: "rbd-mirror.{{ ansible_hostname }}"
+            local_mirror_peer_name: "client.{{ local_mirror_service_name }}"
+          block:
+            - name: Install rbd-mirror apt package
+              ansible.builtin.apt:
+                name: rbd-mirror
+                state: present
+                update_cache: true
+
+            - name: Symlink source cluster ceph.conf file from /etc/pve to /etc/ceph on target cluster
+              ansible.builtin.file:
+                src: "/etc/pve/{{ item.source }}.conf"
+                dest: "/etc/ceph/{{ item.source }}.conf"
+                state: link
+              loop: "{{ pve_rbd_mirrors }}"
+              when: "item.target == pve_group"
+
+            - name: Get or create local target cluster peer for rbd-mirror daemon
+              ansible.builtin.command:
+                "ceph auth get-or-create {{ local_mirror_peer_name }} mon 'profile rbd-mirror' osd 'profile rbd' -o {{ filepath }}"
+              args:
+                creates: "{{ filepath }}"
+              vars:
+                filepath: "/etc/pve/priv/ceph.{{ local_mirror_peer_name }}.keyring"
+              loop: "{{ pve_rbd_mirrors }}"
+              when: "item.target == pve_group"
+
+            - name: Enable ceph-rbd-mirror.target
+              ansible.builtin.systemd:
+                name: "ceph-rbd-mirror.target"
+                enabled: true
+
+            - name: Create ceph-rbd-mirror systemd service file
+              ansible.builtin.copy:
+                src: "/usr/lib/systemd/system/ceph-rbd-mirror@.service"
+                dest: "/etc/systemd/system/ceph-rbd-mirror@.service"
+                remote_src: true
+                force: true # overwrite even if it already exists
+                mode: "0644"
+
+            - name: Modify rbd-mirror service to run as root
+              ansible.builtin.lineinfile:
+                path: "/etc/systemd/system/ceph-rbd-mirror@.service"
+                backrefs: true
+                line: "{{ item.line }}"
+                regexp: "{{ item.regexp }}"
+              loop:
+                - line: "\\1setuser root\\3"
+                  regexp: "(ExecStart=.*)setuser (\\w[-\\w]+)(.*)"
+                - line: "\\1setgroup root\\3"
+                  regexp: "(ExecStart=.*)setgroup (\\w[-\\w]+)(.*)"
+
+            - name: Notify systemd on changed ceph-rbd-mirror service definition
+              ansible.builtin.systemd:
+                daemon_reload: true
+
+            - name: Start and enable ceph-rbd-mirror@.service
+              ansible.builtin.systemd:
+                name: "ceph-rbd-mirror@{{ local_mirror_service_name }}.service"
+                enabled: true
+                state: restarted
+
+    - name: Stop and disable RBD pool mirroring services
+      when:
+        - "pve_rbd_mirror_remove | bool"
+        - "pve_rbd_mirrors | length == 0"
+      vars:
+        local_mirror_service_name: "rbd-mirror.{{ ansible_hostname }}"
+        local_mirror_peer_name: "client.{{ local_mirror_service_name }}"
+      block:
+        - name: Stop and disable ceph-rbd-mirror@.service # noqa: ignore-errors
+          ansible.builtin.systemd:
+            name: "ceph-rbd-mirror@{{ local_mirror_service_name }}.service"
+            enabled: false
+            state: stopped
+          # prevent "Could not find the requested service ceph-rbd-mirror@rbd-mirror.<host>.service"
+          failed_when: false
+
+        - name: Disable ceph-rbd-mirror.target # noqa: ignore-errors
+          ansible.builtin.systemd:
+            name: "ceph-rbd-mirror.target"
+            enabled: false
+            state: stopped
+          # prevent "Could not find the requested service ceph-rbd-mirror.target" -> Gather service facts
+          failed_when: false
+
+        - name: Remove ceph-rbd-mirror systemd service file
+          ansible.builtin.file:
+            path: "/etc/systemd/system/ceph-rbd-mirror@.service"
+            state: absent
+
+        - name: Notify systemd on changed ceph-rbd-mirror service definition
+          ansible.builtin.systemd:
+            daemon_reload: true
+
+        - name: Remove ceph-rbd-mirror keyring file
+          ansible.builtin.file:
+            path: "/etc/pve/priv/ceph.{{ local_mirror_peer_name }}.keyring"
+            state: absent
+
+        - name: Remove rbd-mirror Ceph authorization
+          ansible.builtin.command: "ceph auth rm {{ local_mirror_peer_name }}"
+          changed_when: true
+
+        - name: Remove rbd-mirror apt package
+          ansible.builtin.apt:
+            name: rbd-mirror
+            state: absent
+            autoremove: true
+            purge: true

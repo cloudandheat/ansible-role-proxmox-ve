@@ -1,0 +1,8 @@
+#####################################################################################
+## This file is created and managed by ansible-role-proxmox, task: 'system/sysctl' ##
+## Do not change it in any other way, because any changes will be overwritten.     ##
+#####################################################################################
+
+{% for key, value in pve_sysctl_conf.items() %}
+{{ key }} = {{ value }}
+{% endfor %}

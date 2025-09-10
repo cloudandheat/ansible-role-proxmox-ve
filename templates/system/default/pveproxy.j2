@@ -1,0 +1,23 @@
+#####################################################################################
+## This file is created and managed by ansible-role-proxmox, task: 'system/sysctl' ##
+## Do not change it in any other way, because any changes will be overwritten.     ##
+## For config details check https://pve.proxmox.com/pve-docs/pveproxy.8.html       ##
+#####################################################################################
+
+{% if pve_pveproxy_defaults is mapping %}
+{% for key, value in pve_pveproxy_defaults.items() %}
+{{ key | upper }}="{{ value }}"
+{% endfor %}
+{% endif %}
+
+### legacy Ansible compatible part based on former coding of variable for certain settings
+
+{% if dhparam_file is defined %}
+DHPARAMS="{{ dhparam_file }}"
+{% endif %}
+{% if disable_tls_1_2 is defined %}
+DISABLE_TLS_1_2="{{ disable_tls_1_2s | bool | int }}"
+{% endif %}
+{% if disable_tls_1_3 is defined %}
+DISABLE_TLS_1_3="{{ disable_tls_1_3s | bool | int }}"
+{% endif %}

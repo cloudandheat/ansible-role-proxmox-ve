@@ -1,0 +1,100 @@
+---
+- name: Validate PVE standalone settings
+  when: "not (pve_cluster_enabled | bool) "
+  block:
+    - name: Assign _init_node variable for unclustered hosts
+      ansible.builtin.set_fact:
+        _init_node: "{{ inventory_hostname }}"
+
+- name: Validate PVE cluster settings
+  when: "pve_cluster_enabled | bool"
+  block:
+    - name: Prepare PVE cluster management
+      block:
+        - name: Initialize variables
+          ansible.builtin.set_fact:
+            _pve_found_clusters: "{{ [] }}"
+            _pve_cluster_nodes: "{{ [] }}"
+
+        - name: Lookup cluster status
+          ansible.builtin.command: "pvesh get /cluster/status --output-format json"
+          register: _pve_cluster_status_raw
+          changed_when: false
+
+        - name: Extract cluster status
+          ansible.builtin.set_fact:
+            _pve_cluster_status: "{{ _pve_cluster_status_raw.stdout | default('{}', true) | from_json }}"
+
+        - name: Collect cluster memberships of hosts
+          ansible.builtin.set_fact:
+            # _pve_active_cluster => <cluster name> or false
+            _pve_active_cluster: "{{ (cluster_name | length > 0) | ternary(cluster_name | first, false) }}"
+          vars:
+            cluster_name: "{{ _pve_cluster_status | selectattr('type', '==', 'cluster') | map(attribute='name') }}"
+
+        - name: Display host cluster memberships
+          ansible.builtin.debug:
+            msg: "Cluster member of: {{ 'None' if _pve_active_cluster is false else _pve_active_cluster | default('UNDEF') }}"
+
+        - name: Find all clusters that the group hosts are member of
+          ansible.builtin.set_fact:
+            _pve_found_clusters: "{{ _pve_found_clusters + [hostvars[item]._pve_active_cluster] }}"
+          loop: "{{ groups[pve_group] }}"
+          when:
+            - "hostvars[item]._pve_active_cluster is not false"
+            - "hostvars[item]._pve_active_cluster not in _pve_found_clusters"
+
+        - name: Extract cluster member node names
+          ansible.builtin.set_fact:
+            _pve_cluster_nodes: "{{ _pve_cluster_status | selectattr('type', '==', 'node') | map(attribute='name') }}"
+          when: "_pve_active_cluster is not false"
+
+    - name: Appoint initialization node
+      block:
+        - name: Appoint default initialization node is the first node of pve_group
+          ansible.builtin.set_fact:
+            _init_node: "{{ pve_cluster_initiator_host
+                          | default(groups[pve_group] | first, true)
+                          | default(inventory_hostname, true) }}"
+
+        - name: Ensure initialization node is in an existing PVE cluster
+          ansible.builtin.set_fact:
+            _init_node: "{{ item }}"
+          loop: "{{ groups[pve_group] }}"
+          until: "hostvars[_init_node]._pve_active_cluster == pve_cluster_clustername" # TODO: use break_when instead (Ansible 2.18+)
+          # Only execute when _init_node is not part of an existing cluster but other hosts are.
+          when:
+            - "hostvars[_init_node]._pve_active_cluster != pve_cluster_clustername"
+            - "hostvars[item]._pve_active_cluster == pve_cluster_clustername"
+
+    - name: Validate cluster nodes state
+      block:
+        - name: Ensure that cluster name is not empty
+          ansible.builtin.assert:
+            that:
+              - "pve_cluster_clustername is string"
+              - "pve_cluster_clustername | length > 0"
+            msg: "PVE cluster name 'pve_cluster_clustername' must not be empty."
+
+        - name: Ensure that hosts found are not in multiple existing clusters
+          ansible.builtin.assert:
+            that: "_pve_found_clusters | unique | length <= 1"
+            msg: "Some of the hosts in group '{{ pve_group }}' appear to already be part of different clusters, \
+                  please ensure groups consist only of hosts meant to be in the same cluster."
+
+        - name: Ensure that any existing cluster matches the specified cluster name
+          ansible.builtin.assert:
+            that: "_pve_found_clusters | first == pve_cluster_clustername"
+            msg: "Some of the hosts in group '{{ pve_group }}' appear to be in a cluster named \
+                  '{{ _pve_found_clusters[0] }}', which differs from the specified cluster name of \
+                  '{{ pve_cluster_clustername }}'. Please ensure the cluster name is correct. An existing \
+                  cluster's name cannot be modified."
+          when: "_pve_found_clusters | length == 1"
+
+        - name: Fail if node is not clean
+          ansible.builtin.fail:
+            msg: "Host '{{ inventory_hostname }}' already is cluster member and cannot be re-added!"
+          when:
+            - "_pve_active_cluster is not false"
+            - "ansible_hostname not in hostvars[_init_node]._pve_cluster_nodes"
+            - "inventory_hostname in groups[pve_group]"

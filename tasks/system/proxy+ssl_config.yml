@@ -1,0 +1,66 @@
+---
+- name: Manage PVE SSL/TLS settings
+  when: "dhparam_file | default(false, true) is not false"
+  tags: ssl
+  block:
+    # For details about pveproxy, see: https://pve.proxmox.com/pve-docs/pveproxy.8.html
+    - name: Manage pveproxy Diffie-Hellman parameters
+      when: "dhparam_file | default(false, true) is not false"
+      block:
+        # NOTICE: Ansible sometimes cannot write to all locations (pmxcfs) without creating the file first.
+        - name: Ensure Diffie-Hellman parameter file exists
+          ansible.builtin.file:
+            path: "{{ dhparam_file }}"
+            state: touch
+            access_time: preserve
+            modification_time: preserve
+            mode: "0644"
+          when: "dhparam_file | default(false, true) is not false"
+
+        # NOTICE: community.crypto.openssl_dhparam utilizes https://cryptography.io/en/latest/
+        - name: Regenerate Diffie-Hellman parameters file
+          community.crypto.openssl_dhparam:
+            path: "{{ dhparam_file }}"
+            size: "{{ dhparam_size }}"
+            state: present
+            select_crypto_backend: openssl
+          when: "dhparam_file | default(false, true) is not false"
+
+    - name: Manage pveproxy certificates
+      when:
+        - "pve_ssl_private_key | default('', true) | length > 0"
+        - "pve_ssl_certificate | default('', true) | length > 0"
+      block:
+        - name: Copy PVE SSL certificate chain and key to /etc/ssl
+          ansible.builtin.copy:
+            content: "{{ item.content }}"
+            dest: "{{ item.dest }}"
+            mode: "640"
+          loop:
+            - dest: "/etc/ssl/pveproxy-ssl.key"
+              content: "{{ pve_ssl_private_key }}"
+            - dest: "/etc/ssl/pveproxy-ssl.pem"
+              content: "{{ pve_ssl_certificate }}"
+
+        - name: Install PVE SSL certificate chain and key
+          ansible.builtin.shell: "diff {{ item.src }} {{ item.dest }} >/dev/null 2>&1 || (cp {{ item.src }} {{ item.dest }}; echo changed)"
+          register: _pve_ssl_diff
+          changed_when: "'changed' in _pve_ssl_diff.stdout"
+          loop:
+            - src: "/etc/ssl/pveproxy-ssl.key"
+              dest: "/etc/pve/local/pveproxy-ssl.key"
+            - src: "/etc/ssl/pveproxy-ssl.pem"
+              dest: "/etc/pve/local/pveproxy-ssl.pem"
+          notify:
+            - restart pveproxy
+
+- name: Manage further PVE proxy settings
+  tags: pve_proxy
+  block:
+    - name: Create the pveproxy settings from template
+      ansible.builtin.template:
+        src: system/default/pveproxy.j2
+        dest: /etc/default/pveproxy
+      notify:
+        - restart pveproxy
+

@@ -1,0 +1,34 @@
+
+## This file is created and managed by ansible-role-proxmox task pcie_passthrought
+## Do not change it in any other way, because it will be overwritten
+
+{% if (pve_pcie_ovmf_enabled | bool) %}
+options vfio-pci disable_vga=1
+{% endif %}
+
+{% if (pve_pci_device_ids | length > 0) %}
+options vfio-pci ids={% for id in pve_pci_device_ids -%}
+{{ id }}{% if id != (pve_pci_device_ids | last) %},{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if (pve_iommu_unsafe_interrupts | bool) %}
+options vfio_iommu_type1 allow_unsafe_interrupts=1
+{% endif %}
+
+{% if (pve_pcie_ignore_msrs | bool) %}options kvm ignore_msrs=1{% endif %}
+
+{% if (not pve_pcie_report_msrs | bool) %}options kvm report_ignored_msrs=0{% endif %}
+
+{% if (pve_vfio_blacklist_modules | length > 0) %}
+{% for modules in pve_vfio_blacklist_modules %}
+softdep {{ modules }} pre: vfio-pci
+{% endfor %}
+{% endif %}
+
+{% if (pve_vfio_blacklist_modules | length > 0) %}
+{% for modules in pve_vfio_blacklist_modules %}
+blacklist {{ modules }} 
+{% endfor %}
+{% endif %}
+

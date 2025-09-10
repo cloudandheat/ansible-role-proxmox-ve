@@ -1,0 +1,14 @@
+##################################################################################################
+## This file is created and managed by ansible-role-proxmox, task: 'system/ssh_config.yml'      ##
+## Do not change it in any other way, because any changes will be overwritten.                  ##
+##################################################################################################
+AuthorizedKeysFile     .ssh/authorized_keys 
+
+{% for host in groups[pve_group] %}
+Match Address {{ hostvars[host].pve_cluster_ssh_addrs | join(",") }}
+     AllowUsers root 
+     AllowGroups root 
+     PermitRootLogin prohibit-password
+     PermitTTY {{ "Yes" if pve_ssh_permit_tty is true else "No" }}
+
+{% endfor %}

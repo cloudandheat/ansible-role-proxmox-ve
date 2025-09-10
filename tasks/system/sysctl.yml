@@ -1,0 +1,31 @@
+---
+- name: Manage custom sysctl configuration
+  block:
+    - name: Write config file for custom sysctl values
+      ansible.builtin.template:
+        src: "system/sysctl/99-sysctl-pve.conf.j2"
+        dest: "/etc/sysctl.d/99-sysctl-pve.conf"
+        owner: "root"
+        group: "root"
+        mode: "0644"
+      register: _sysctl_file_raw
+      when: "pve_sysctl_conf | length > 0"
+
+    - name: Apply sysctl values
+      ansible.builtin.command: "sysctl -f /etc/sysctl.d/99-sysctl-pve.conf"
+      # NOTICE sysctl-pve.conf may exist but was not applied/loaded -> _sysctl_file_raw.changed == false.
+      when: "pve_sysctl_conf | length > 0"
+      changed_when: "_sysctl_file_raw.changed"
+
+    - name: Remove sysctl config file if no values are defined
+      ansible.builtin.file:
+        path: "/etc/sysctl.d/99-sysctl-pve.conf"
+        state: absent
+      register: _sysctl_file_raw
+      when: "pve_sysctl_conf | length == 0"
+
+    - name: Apply sysctl values
+      ansible.builtin.command: "sysctl --system"
+      when: "pve_sysctl_conf | length == 0"
+      changed_when: "_sysctl_file_raw.changed"
+

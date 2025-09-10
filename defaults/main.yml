@@ -1,74 +1,776 @@
 ---
-# defaults file for ansible-role-proxmox
-pve_group: proxmox
-pve_repository:
-  uris: http://download.proxmox.com/debian/pve
-  suites: "{{ ansible_distribution_release }}"
-  components: pve-no-subscription
-# Repo configuration for Proxmox VE < 9
-pve_repository_line: "deb http://download.proxmox.com/debian/pve {{ ansible_distribution_release }} pve-no-subscription"
+### Default vars file for ansible-role-proxmox ###
+### PVE Common
+# pve_group -> str|list[str]: (Irreversible) Inventory group(s) of hosts to cluster together.
+# NOTE: To actually enable clustering, set the corresponding variables to true.
+pve_group: "{{ group_names }}"
+# pve_remove_subscription_warning -> bool: (Declarative) Remove PVE no subscription warning.
 pve_remove_subscription_warning: true
+# pve_manage_etc_hosts -> bool: (Irreversible) If hosts file should be auto-generated with cluster hosts. (Overwriting manual changes.)
+pve_manage_etc_hosts: true
+# pve_hostname_rename -> Optional[str]: (Declarative) If and what hosts should get renamed to.
+# Examples: "{{ ansible_hostname }}.{{ pve_domain }}" to append <pve_domain> (RECOMMENDED!)
+#          "{{ inventory_hostname }}" to reset the hostname to the inventory declared one.
+pve_hostname_rename: null
+# pve_domain -> str: (Declarative) Domain in which the cluster hosts in hosts file should be reachable.
+pve_domain: "example.test"
+# pve_no_log -> bool: Suppress some ansible log output of this role.
+pve_no_log: false
+
+
+### PVEPROXY + SSL/TLS
+# pve_pveproxy_defaults -> Optional dict={
+# <key> -> str="viablae config key" : <value> -> str="viable config value"
+# }: (Declarative)
+pve_pveproxy_defaults: null
+# pve_ssl_private_key -> Optional[str]: (Declarative) Content of HTTPS private key for PVE WebUI.
+pve_ssl_private_key: null
+# pve_ssl_certificate -> Optional[str]: (Declarative) Content of HTTPS certificate for PVE WebUI.
+pve_ssl_certificate: null
+# pve_disable_tls_1_2 -> bool: If TLS 1.2 should be disabled for HTTPS to the WebUI.
+pve_disable_tls_1_2: false
+# pve_disable_tls_1_3 -> bool: If TLS 1.3 should be disabled for HTTPS to the WebUI.
+pve_disable_tls_1_3: false
+# dhparam_file -> Optional[str|FilePath]: File path of Diffie-Hellmann parameters file.
+dhparam_file: "/etc/ssl/dhparams.pem"
+# dhparam_size -> int=range(2048,inf): Size of Diffie-Hellmann parameters in Bits. NOTE: Sizes > 2048 can take a long time to generate.
+dhparam_size: 4096
+
+
+### SSH settings for intra cluster communication
+# pve_manage_ssh -> bool: (Irreversible) If SSH configuration and authorization should be managed by this role. (RECOMMENDED!)
+pve_manage_ssh: true
+# pve_ssh_port -> int=range(1, 65535): (Declarative) Port the SSH service should listen on.
+pve_ssh_port: 22
+# pve_ssh_key_type -> Selection[str]=('ed25519','rsa', …): (Declarative) Algorithm for SSH keys generation.
+pve_ssh_key_type: "ed25519"
+# pve_ssh_key_bits -> int: (Declarative) The bit-length of the SSH key to generate.
+pve_ssh_key_bits: 256
+# pve_ssh_additional_authorized_keys -> Optional[list[str]]: (Declarative) Additional authorized SSH keys for PVE hosts login.
+pve_ssh_additional_authorized_keys: null
+# pve_ssh_permit_tty -> bool: (Declarative) If interactive SSH sessions are enabled for root users between hosts.
+pve_ssh_permit_tty: true
+
+
+### APT Packages & Repository
+# pve_manage_debian_repository -> bool: (Irreversible) If the debian OS repository mirrors should be overwritten with pve_debian_repository_lines.
+pve_manage_debian_repository: true
+# pve_debian_version -> str: (Declarative) The hosts debian os release name.
+pve_debian_version: "bookworm"
+# pve_debian_repository_lines -> list[str]: (Declarative) Debian OS apt sources list repository mirror line.
+pve_debian_repository_lines:
+  - "deb http://deb.debian.org/debian/ {{ pve_debian_version }} main non-free-firmware"
+  - "deb-src http://deb.debian.org/debian/ {{ pve_debian_version }} main non-free-firmware"
+  - "deb http://security.debian.org/debian-security {{ pve_debian_version }}-security main non-free-firmware"
+  - "deb-src http://security.debian.org/debian-security {{ pve_debian_version }}-security main non-free-firmware"
+  - "deb http://deb.debian.org/debian/ {{ pve_debian_version }}-updates main non-free-firmware"
+  - "deb-src http://deb.debian.org/debian/ {{ pve_debian_version }}-updates main non-free-firmware"
+# pve_repository_line -> str: (Declarative) PVE apt sources list repository mirror line.
+# (Further information: https://pve.proxmox.com/wiki/Package_Repositories)
+pve_repository_line: "deb http://download.proxmox.com/debian/pve {{ pve_debian_version }} pve-no-subscription"
+# pve_ceph_repository_line -> str: (Declarative) PVE Ceph apt sources list repository mirror line.
+# (Further information: https://pve.proxmox.com/wiki/Package_Repositories)
+pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-reef {{ pve_debian_version }} no-subscription"
+# pve_extra_uninstall_packages -> list[str]: (Irreversible) Names of apt packages to remove (purge).
+pve_extra_uninstall_packages: []
+# pve_extra_packages -> list[str]: (Irreversible) Names of additional apt packages to install on each host.
 pve_extra_packages: []
-pve_check_for_kernel_update: true
-pve_reboot_on_kernel_update: false
-pve_reboot_on_kernel_update_delay: 60
-pve_remove_old_kernels: true
-# pve_default_kernel_version:
+# pve_run_system_upgrades -> bool: (Declarative) Do 'unsafe' apt dist upgrades.
 pve_run_system_upgrades: false
+# pve_run_proxmox_upgrades -> bool: (Declarative) If Proxmox and related packages should be updated.
 pve_run_proxmox_upgrades: true
+
+
+### PVE Kernel
+# pve_check_for_kernel_update -> bool: (Declarative) Test if a kernel update is pending.
+pve_check_for_kernel_update: true
+# pve_reboot_on_kernel_update -> bool: (Declarative) If host should be rebooted on pending kernel update / if kernel update should get installed.
+pve_reboot_on_kernel_update: false
+# pve_reboot_on_kernel_update_delay -> int: (Declarative) How long to wait before reboot.
+pve_reboot_on_kernel_update_delay: 60
+# pve_reboot_throttle -> int: (Declarative) number of hosts to boot in parallel
+pve_reboot_throttle: 1
+# pve_remove_old_kernels -> bool: (Declarative) If old kernels should be removed.
+pve_remove_old_kernels: true
+# pve_pin_kernel_version -> Optional[false|str]: (Declarative) If pinning, what version to pin kernel to, e.g. '1.0.1'.
+pve_pin_kernel_version: "{{ pve_default_kernel_version | default(false, true) }}"
+# pve_default_kernel_version -> Optional[false|str]: Same as pve_pin_kernel_version.
+pve_default_kernel_version: false
+
+
+### PVE User Management, Auth & Realms
+# pve_realms -> dict={
+# <realm> -> str:
+# dict={
+#  'acr-values' -> str=regex(^[^\x00-\x1F\x7F <>#"]*$): Specifies the Authentication Context Class Reference values that
+#                                                       the Authorization Server is being requested to use for the Auth Request.
+#  'autocreate' -> bool (default=false): Automatically create users if they do not exist.
+#  'base_dn' -> str: (Required for type='ldap') LDAP base domain name.
+#  'bind_dn' -> str: LDAP bind domain name.
+#  'capath' -> str: (default='/etc/ssl/certs') Path to the CA certificate store.
+#  'case-sensitive' -> bool: (default=true) If username is case-sensitive.
+#  'cert' -> str: Path to the client certificate.
+#  'certkey' -> str: Path to the client certificate key.
+#  'check-connection' -> bool: (default=false) Check bind connection to the server.
+#  'client-id' -> str: (Required for type='openid') OpenID Client ID.
+#  'client-key' -> str: OpenID Client Key.
+#  'comment' -> str: Description.
+#  'default' -> bool: Use this as default realm.
+#  'domain' -> str=regex(\S+): (Required for type='ad') AD domain name.
+#  'filter' -> str: LDAP filter for user sync.
+#  'group_classes' -> list[str]: (default=['groupOfNames', 'group', 'univentionGroup', 'ipausergroup']): The objectclasses for groups.
+#  'group_dn' -> str: LDAP base domain name for group sync. If not set, the base_dn will be used.
+#  'group_filter' -> str: LDAP filter for group sync.
+#  'group_name_attr' -> str: LDAP attribute representing a groups name. If not set or found, the first value of the DN will be used as name.
+#  'groups-autocreate' -> bool: (default=false): Automatically create groups if they do not exist.
+#  'groups-claim' -> str=regex([A-Za-z0-9\.\-_]+): OpenID claim used to retrieve groups with.
+#  'groups-overwrite' -> bool: (default=false): All groups will be overwritten for the user on login.
+#  'issuer-url' -> str: (Required for type='openid') OpenID Issuer Url
+#  'mode' -> str=Selection('ldap', 'ldap+starttls', 'ldaps'): (default='ldap') LDAP protocol mode.
+#  'password' -> str: LDAP bind password. Will be stored in /etc/pve/priv/realm/<REALM>.pw.
+#  'port' -> int=range(1, 65535): Server port.
+#  'prompt' -> str=regex(none|login|consent|select_account|\S+): Specifies whether the Authorization Server prompts
+#                                                                the End-User for reauthentication and consent.
+#  'query-userinfo' -> bool: (default=true) Enables querying the userinfo endpoint for claims values.
+#  'scopes' -> str: (default='email profile') Specifies the scopes (user details) that should be authorized and returned, for example email or profile.
+#  'server1' -> str: (Required) Server IP address (or DNS name)
+#  'server2' -> str: Fallback Server IP address (or DNS name)
+#  'sslversion' -> str=Selection('tlsv1', 'tlsv1_1', 'tlsv1_2', 'tlsv1_3'): LDAPS TLS/SSL version.
+#  'sync-defaults-options' ->
+#    str='[enable-new=<1|0>][,full=<1|0>][,purge=<1|0>][,remove-vanished=([acl];[properties];[entry])|none][,scope=<users|groups|both>]':
+#    The default options for behavior of synchronizations.
+#  'sync_attributes' -> list[str=regex(\w+=[^,]+)]: List of <pve field>=<ldap attr> pairs specifying which LDAP attributes map to which PVE user field.
+#                                                   For example, to map the LDAP attribute 'mail' to PVEs 'email', write email=mail.
+#                                                   By default, each PVE user field is represented by an LDAP attribute of the same name.
+#  'tfa' -> str='type=<TFATYPE>[,digits=<COUNT>][,id=<ID>][,key=<KEY>][,step=<SECONDS>][,url=<URL>]': Use Two-factor authentication.
+#  'type' -> str=Selection('ad', 'ldap', 'openid', 'pam', 'pve'): (Required) Realm type.
+#  'user_attr' -> str=regex(\S{2,}): (Required for type='ldap') LDAP user attribute name. ('uid' or 'sAMAccountName' in most cases.)
+#  'user_classes' -> list[str]: (default=['inetorgperson', 'posixaccount', 'person', 'user']): The objectclasses for users.
+#  'username-claim' -> str: OpenID claim used to generate the unique username.
+#  'verify' -> bool: (default=false) Verify the server’s SSL certificate
+#  'sync' -> dict = {
+#   'dry-run' -> bool: (default=false) If set, does not write anything.
+#   'enable-new' -> bool: (default=true): Enable newly synced users immediately.
+#   'remove-vanished' -> str=Selection('[acl;][properties;][entry]', 'none'): (default='none')
+#                        A semicolon-separated list of things to remove when they or the user vanishes during a sync.
+#                        The following values are possible:
+#                        'acl' removes acls when the user/group is not returned from the sync. Instead of a list it also can be 'none' (the default).
+#                        'properties' removes the set properties on existing user/group that do not appear in the source (even custom ones).
+#                        'entry' removes the user/group when not returned from the sync.
+#   'scope' -> str=Selection('both', 'groups', 'users'): (Required) Select what to sync.
+#  }: Declare a realm sync that should be executed on every run of this role. (Only if 'type' in ['ad', 'ldap']!)
+# } | list[dict={'realm': <realm>, …}]: (Declarative) PVE authentication realms ('domains').
+pve_realms: {}
+# pve_realms_sync_jobs -> list[dict={
+#  'id' -> str: (Optional) Unique ID of this sync job.
+#  'realm' -> str: (Required) Name of realm to sync.
+#  'enabled' -> bool: (default=true) If this sync job is enabled.
+#  'enable-new' -> bool:  (default=true) If newly synced users are enabled immediately.
+#  'schedule' -> str: (Required) Execution schedule. The format is a subset of `systemd` calendar events.
+#                                Examples:
+#                                  - 'daily', 'weekly', 'monthly', 'yearly'
+#                                  - '*/30' for every 30 minutes.
+#                                  - '*/2:00' for every 2 hours.
+#                                  - '21:00' for everyday 21:00.
+#                                  - '2,22:30' for everyday 2:30 and 22:30.
+#                                  - 'mon..fri 00:00' for Monday-Friday 00:00.
+#                                  - 'mon..fri */1:00' for Monday-Friday hourly.
+#                                  - 'mon..fri 7..18:00/15' for Monday-Friday 7:00-18:00 every 15 minutes.
+#                                  - 'sat *-1..7 15:00' for first Saturday each month 15:00.
+#  'comment' -> str: Description of this sync job.
+#  'remove-vanished' -> str=Selection('[acl;][properties;][entry]', 'none'): (default='none')
+#                       A semicolon-separated list of things to remove when they or the user vanishes during a sync.
+#                       The following values are possible:
+#                       'acl' removes acls when the user/group is not returned from the sync. Instead of a list it also can be 'none' (the default).
+#                       'properties' removes the set properties on existing user/group that do not appear in the source (even custom ones).
+#                       'entry' removes the user/group when not returned from the sync.
+#  'scope' -> str=Selection('both', 'groups', 'users'): (Required) Select what to sync.
+# }]: (Declarative) Define scheduled realm sync jobs that sync users and/or groups regularly.
+pve_realm_sync_jobs: []
+# pve_pools -> dict={
+# <poolid> -> str: Resource pool name.
+#  dict={
+#   'comment' -> str: Resource pool comment.
+#   'allow-move' -> bool: (default=false): Allow adding a guest even if already in another pool.
+#                                          The guest will be removed from its current pool and added to this one.
+#   'storage' -> list[str]: List of storage IDs/names to add or remove from this pool.
+#   'vms' -> list[str]: List of guest VMIDs to add or remove from this pool.
+#  }
+# } | list[dict={'poolid': <poolid>, …}|str=<poolid>]: (Declarative) PVE (resource) pools.
+pve_pools: {}
+# pve_roles -> dict={
+# <roleid> -> str=regex(^(?![pP][vV][eE]).*): Name/ID of the new role. (Must not start with 'pve'/'PVE')
+#  dict={
+#   'privs' -> list[str]: List of privileges. (see https://pve.proxmox.com/pve-docs/pveum.1.html#_privileges)
+#  }
+# } | list[dict={'roleid': <roleid>, …}|str=<roleid>]: (Declarative) Additional PVE roles.
+pve_roles: {}
+# pve_groups -> dict={
+#  <groupid> -> str: Name/ID of the group.
+#  dict={
+#   'comment' -> str: Description of this group.
+#  }
+# } | list[dict={'groupid': <groupid>, …}|str=<groupid>]: (Declarative) PVE user groups.
+pve_groups: {}
+# pve_users -> dict={
+# <userid> -> str: Full User ID, in the name@realm format.
+# dict={
+#   'comment' -> str: User comment or description.
+#   'email' -> str: User e-mail address.
+#   'enable' -> bool: (default=true) Enable the account (default). Set this to false to disable the account
+#   'expire' -> int=range(0, inf): Account expiration date (seconds since epoch [1970-01-01]). 0 means no expiration date.
+#   'firstname' -> str: User first name.
+#   'lastname' -> str: User last name.
+#   'groups' -> list[str]|str: Groups the user is member of.
+#   'keys' -> str=regex[0-9a-zA-Z!=]{0,4096}: Keys for two-factor auth (yubico).
+#   'password' -> str: Initial password. Ensure the authentication realm does exist and is writeable.
+# TODO MW:
+#   'token' -> dict={ # TODO WIP, NOT SUPPORTED
+#     <tokenid> -> str: (Required) Token identifier.
+#     {
+#      'comment' -> str: Token description.
+#      'expire' -> int: (default=<user.expire>) API token expiration date (seconds since epoch). '0' means no expiration date.
+#      'privsep' -> bool: (default=true) Restrict API token privileges with separate ACLs (default), or give full privileges of corresponding user.
+#      'file' -> str|FilePath: Where to store the token value.
+#      'host' -> str|host: On which host to store the token value.
+#     }
+#   } | list[dict={'tokenid': <tokenid>, …}]: Define user-specific API token.
+#  }
+# } | list[dict={'userid': <userid>, …}|str=<userid>]: (Declarative) PVE users.
+pve_users: {}
+# pve_acls -> list[dict={
+#  'path' -> str: (Required) Access control path. List of valid ACL paths in perl-regex style:
+#                  (https://github.com/proxmox/pve-access-control/blob/25dd3756f90afbf65799da4708b3df9c2bf7e9f6/src/PVE/AccessControl.pm#L1258)
+#  	               regex=('/                                                               (Everything)
+#	                      |/access                                                         (Identity and Access)
+#	                      |/access/groups                                                  (All PVE user groups)
+#	                      |/access/groups/[[:alnum:]\.\-\_]+                               (Specific PVE user group)
+#	                      |/access/realm                                                   (All PVE realms/'domains')
+#	                      |/access/realm/[[:alnum:]\.\-\_]+                                (Specific PVE realm/'domain')
+#	                      |/nodes                                                          (All PVE nodes)
+#	                      |/nodes/[[:alnum:]\.\-\_]+                                       (Specific PVE cluster node)
+#	                      |/pool                                                           (All PVE resource pools)
+#	                      |/pool/[A-Za-z0-9\.\-_]+(?:/[A-Za-z0-9\.\-_]+){0,2}              (Specific PVE resource pool)
+#	                      |/sdn                                                            (Full SDN access in cluster)
+#	                      |/sdn/controllers                                                (...)
+#	                      |/sdn/controllers/[[:alnum:]\_\-]+                               (...)
+#	                      |/sdn/dns                                                        (...)
+#	                      |/sdn/dns/[[:alnum:]]+                                           (...)
+#	                      |/sdn/ipams                                                      (...)
+#	                      |/sdn/ipams/[[:alnum:]]+                                         (...)
+#	                      |/sdn/zones                                                      (All SDN zones in cluster)
+#	                      |/sdn/zones/[[:alnum:]\.\-\_]+                                   (...)
+#	                      |/sdn/zones/[[:alnum:]\.\-\_]+/[[:alnum:]\.\-\_]+                (...)
+#	                      |/sdn/zones/[[:alnum:]\.\-\_]+/[[:alnum:]\.\-\_]+/[1-9][0-9]{0,3}(...)
+#	                      |/storage                                                        (All PVE storages)
+#	                      |/storage/[[:alnum:]\.\-\_]+                                     (Specific PVE storage)
+#	                      |/vms                                                            (All VMs in cluster)
+#	                      |/vms/[1-9][0-9]{2,}                                             (Specific VMID)
+#	                      |/mapping                                                        (All mappings)
+#	                      |/mapping/[[:alnum:]\.\-\_]+                                     (...)
+#	                      |/mapping/[[:alnum:]\.\-\_]+/[[:alnum:]\.\-\_]+                  (...)
+#                         ')
+#  'groups' -> list[str]|str: (Any of 'users', 'roles', 'tokens' is required) List of groups to apply acl to.
+#  'propagate' -> bool: (default=true) Allow to propagate (inherit) permissions.
+#  'roles' -> list[str]|str: (Required) List of roles to apply acl to.
+#  'tokens' -> list[str]|str: (Any of 'users', 'roles', 'tokens' is required) List of API tokens to apply acl to.
+#  'users' -> list[str]|str: (Any of 'users', 'roles', 'tokens' is required) List of users to apply acl to.
+# }]: (Declarative) PVE Access Control List settings.
+pve_acls: []
+
+# List of storages to manage in PVE. See section on Storage Management.
+pve_metric_servers: []
+pve_hooks: {}
+
+
+### Security / Hardening
+# pve_sysctl_conf -> dict={
+#  <sysctl key> -> str: <sysctl key value> -> int: Mapping of sysctl config path to value.
+# }: (Declarative) Custom sysctl configuration settings to apply on each host.
+# Example: {"net.ipv6.conf.all.disable_ipv6": 1, …}
+pve_sysctl_conf: {}
+# pve_ksm_enabled -> bool: (Declarative) Toggle (PVE-) kernel same page merging.
+pve_ksm_enabled: true
+
+
+### PCIe Passthrough
+# pve_pcie_passthrough_enabled -> bool: (Declarative) Same as pve_manage_pcie_passthrough.
 pve_pcie_passthrough_enabled: false
+# pve_manage_pcie_passthrough -> bool: (Declarative) Renamed from pve_pcie_passthrough_enabled.
+pve_manage_pcie_passthrough: "{{ pve_pcie_passthrough_enabled }}"  # introducing pve_manage as prefix for reversible actions
+pve_pci_device_ids: []
 pve_iommu_passthrough_mode: false
 pve_iommu_unsafe_interrupts: false
 pve_mediated_devices_enabled: false
 pve_pcie_ovmf_enabled: false
-pve_pci_device_ids: []
-pve_vfio_blacklist_drivers: []
+#pve_vfio_blacklist_drivers: []
 pve_pcie_ignore_msrs: false
 pve_pcie_report_msrs: true
-pve_watchdog: none
+### pve kernel modules
+pve_vfio_modules: [vfio, vfio_iommu_type1, vfio_pci, vfio_virqfd]
+pve_vfio_blacklist_modules: []
+#   required vfio modules
+pve_gvtg_modules: [kvmgt, mdev]
+
+
+### Watchdog
+pve_watchdog: null
 pve_watchdog_ipmi_action: power_cycle
 pve_watchdog_ipmi_timeout: 10
-pve_zfs_enabled: no
-# pve_zfs_options: "parameters to pass to zfs module"
-# pve_zfs_zed_email: "email address for zfs events"
-pve_zfs_create_volumes: []
-pve_ceph_enabled: false
-pve_ceph_repository:
-  uris: http://download.proxmox.com/debian/ceph-{{ pve_ceph_default_version }}
-  suites: "{{ ansible_distribution_release }}"
-  components: "{{ pve_ceph_debian_component }}"
-# Ceph Repo configuration for Proxmox VE < 9
-pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-{{ pve_ceph_default_version }} {{ ansible_distribution_release }} {{ pve_ceph_debian_component }}"
-pve_ceph_network: "{{ (ansible_default_ipv4.network +'/'+ ansible_default_ipv4.netmask) | ansible.utils.ipaddr('net') }}"
-pve_ceph_nodes: "{{ pve_group }}"
-pve_ceph_mon_group: "{{ pve_group }}"
-pve_ceph_mgr_group: "{{ pve_ceph_mon_group }}"
-pve_ceph_mds_group: "{{ pve_group }}"
-pve_ceph_osds: []
-pve_ceph_pools: []
-pve_ceph_fs: []
-pve_ceph_crush_rules: []
-# pve_ssl_private_key: "contents of private key"
-# pve_ssl_certificate: "contents of certificate"
-pve_cluster_enabled: no
+
+
+### Corosync Cluster
+# TODO rename to 'pve_manage_cluster'
+# pve_cluster_enabled -> bool: (Irreversible) If a PVE cluster consisting of all group hosts should get created.
+#                                             NOTE: This requires "pve_cluster_addr0" to be set and correct.
+pve_cluster_enabled: null
+# pve_cluster_clustername -> str: (Irreversible) Name of the new cluster.
 pve_cluster_clustername: "{{ pve_group }}"
-pve_manage_hosts_enabled: yes
-pve_cluster_addr0: "{{ ansible_default_ipv4.address if ansible_default_ipv4.address is defined else ansible_default_ipv6.address if ansible_default_ipv6.address is defined }}"
-# pve_cluster_addr1: "{{ ansible_eth1.ipv4.address }}
-# pve_cluster_addr0_priority: 0
-# pve_cluster_addr1_priority: 1
-pve_datacenter_cfg: {}
-pve_domains_cfg: []
-pve_cluster_ha_groups: []
-# additional roles for your cluster (f.e. for monitoring)
-pve_pools: []
-pve_roles: []
-pve_groups: []
-pve_users: []
-pve_acls: []
+# pve_cluster_initiator_host -> str|host: (Declarative)
+#                           Host for initialization and node management of corosync and ceph clusters (if enabled).
+pve_cluster_initiator_host: "{{ groups[pve_group][0] }}"
+# pve_cluster_addr0 -> str|ipaddr: (Irreversible) Host's first IP address on Corosync network.
+#                                  NOTE: Aliased by "corosync_ring0_ip: <host_ip_address>/<netmask>" host variable.
+pve_cluster_addr0: "{{ ansible_default_ipv4.address if ansible_default_ipv4.address is defined
+                       else ansible_default_ipv6.address if ansible_default_ipv6.address is defined }}"
+# pve_cluster_addr1 -> Optional[false|str|ipaddr]: (Irreversible) Host's second IP address on Corosync network.
+#                                  NOTE: Aliased by "corosync_ring1_ip: <host_ip_address>/<netmask>" host variable.
+pve_cluster_addr1: null
+# pve_cluster_addr0_priority -> Optional[int=range(0,inf)]: (Irreversible)
+# Priority of hosts first interface on Corosync network, higher int = higher prio = used first
+pve_cluster_addr0_priority: 100
+# pve_cluster_addr1_priority -> Optional[int=range(0,inf)]: (Irreversible)
+# Priority of hosts second interface on Corosync network, higher int = higher prio = used first
+pve_cluster_addr1_priority: 50
+# pve_cluster_ha_groups -> list[dict={
+#  'name' -> str: (Required) Name of HA group.
+#  'comment' -> str: (default="") Comment on HA group, defaults to "".
+#  'nodes' -> list[str|host]: (default=groups[pve_group]) List of hostnames belonging to this HA group.
+#                             Priority within the HA group can be defined by suffixing ':<priority>' to the hostnames. 
+#                             Defaults to all hosts in pve_group.
+#  'nofailback' -> bool: (default=false) The CRM tries to run services on the node with the highest priority.
+#                         If a node with higher priority comes online, the CRM migrates the service to that node.
+#                         Enabling 'nofailback' prevents that behavior.
+#  'restricted' -> bool: (default=false) Resources bound to restricted groups may only run on nodes defined by the group.
+# }]: (Declarative) List of HA groups to be created defined as dict,
+# consisting of 'name' key and key-values used as arguments for ha-manager command.
+pve_cluster_ha_groups: null
+# pve_datacenter_options -> dict={
+#  'bwlimit' -> str='[clone=<LIMIT>][,default=<LIMIT>][,migration=<LIMIT>][,move=<LIMIT>][,restore=<LIMIT>]':
+#                                                             Set I/O bandwidth limit for various operations (in KiB/s).
+#  'consent-text' -> str: Consent text that is displayed before logging in.
+#  'console' -> str=Selection('applet', 'vv', 'html5', 'xtermjs'): (default='xtermjs') Default Console viewer.
+#                                                                  If the selected viewer is not available (e.g. SPICE not activated for the VM),
+#                                                                  the fallback is noVNC.
+#  'crs' -> str='[ha=<basic|static>][,ha-rebalance-on-start=<1|0>]': Cluster resource scheduling settings.
+#  'description' -> str: Datacenter description. Shown in the web-interface datacenter notes panel.
+#  'email_from' -> str: Specify email address to send notification from (default is root@$hostname)
+#  'fencing' -> str=Selection('watchdog', 'hardware', 'both'): Set the fencing mode of the HA cluster.
+#                            Hardware mode needs a valid configuration of fence devices in /etc/pve/ha/fence.cfg.
+#                            With both all two modes are used. WARNING: 'hardware' and 'both' are EXPERIMENTAL & WIP
+#  'ha' -> str='shutdown_policy=[freeze|failover|migrate|conditional]': (default='shutdown_policy=conditional') Cluster wide HA settings.
+#  'http_proxy' -> str: http://.* Specify external http proxy which is used for downloads (example: 'http://username:password@host:port/')
+#  'keyboard' -> str=Select('de', 'de-ch', 'da', 'en-gb', 'en-us', 'es', 'fi', 'fr', 'fr-be', 'fr-ca', 'fr-ch', 'hu', 'is',
+#                           'it', 'ja', 'lt', 'mk', 'nl', 'no', 'pl', 'pt', 'pt-br', 'sv', 'sl', 'tr'): Default keybord layout for vnc server.
+#  'language' -> str=Select('ar', 'ca', 'da', 'de', 'en', 'es', 'eu', 'fa', 'fr', 'hr', 'he', 'it', 'ja', 'ka', 'kr', 'nb',
+#                           'nl', 'nn', 'pl', 'pt_BR', 'ru', 'sl', 'sv', 'tr', 'ukr', 'zh_CN', 'zh_TW'): Default GUI language.
+#  'mac_prefix' -> str: (default='BC:24:11'): Prefix for the auto-generated MAC addresses of virtual guests.
+#                                             The default `BC:24:11` is the Organizationally Unique Identifier (OUI) assigned by the IEEE
+#                                             to Proxmox Server Solutions GmbH for a MAC Address Block Large (MA-L).
+#                                             You're allowed to use this in local networks, i.e.,
+#                                             those not directly reachable by the public (e.g., in a LAN or NAT/Masquerading).
+#                                             Note that when you run multiple cluster that (partially) share the networks of their virtual guests,
+#                                             it's highly recommended that you extend the default MAC prefix,
+#                                             or generate a custom (valid) one, to reduce the chance of MAC collisions.
+#                                             For example, add a separate extra hexadecimal to the Proxmox OUI for each cluster,
+#                                             like `BC:24:11:0` for the first, `BC:24:11:1` for the second, and so on.
+#  'max_workers' -> int=range(1,inf): Defines how many workers (per node) are maximally started on actions or tasks.
+#  'migration' -> str='[type=]<secure|insecure>[,network=<CIDR>]: Cluster wide migration settings.
+#  'next-id' -> str='[lower=<int=range(10,upper)>][,upper=<int=range(lower,inf)>]': Control the range for the free VMID pool.
+#  'notify' -> str='[fencing=<always|never>][,package-updates=<auto|always|never>][,replication=<always|never>]
+#                   [,target-fencing=<TARGET>][,target-package-updates=<TARGET>][,target-replication=<TARGET>]': Cluster-wide notification settings.
+#  'registered-tags' -> str='<tag>[;<tag>[;<tag>[…]]]': A list of tags that require a `Sys.Modify` on '/' to set and delete.
+#                                                       Tags set here that are also in 'user-tag-access' also require `Sys.Modify`.
+#  'tag-style' -> str='[case-sensitive=<1|0>][,color-map=<tag>:<hex-color>[:<hex-color-for-text>][;<tag>=...]]
+#                      [,ordering=<config|alphabetical>][,shape=<enum>]': Tag style options.
+#  'user-tag-access' -> str='[user-allow=<enum>][,user-allow-list=<tag>[;<tag>...]]': Privilege options for user-settable tags.
+#  'webauthn' -> str='[allow-subdomains=<1|0>][,id=<DOMAINNAME>][,origin=<URL>][,rp=<RELYING_PARTY>]': WebAuthn configuration.
+# }: (Declarative) Custom PVE Datacenter options.
+# Example: {"bwlimit": "default=1048576", "crs": "ha=basic,ha-rebalance-on-start=1", "ha": "shutdown_policy=migrate", …}
+pve_datacenter_options: {}
+# pve_datacenter_cfg -> dict: (Legacy) key-values for PVE datacenter options (datacenter.cfg).
+pve_datacenter_cfg: "{{ pve_datacenter_options }}"
+
+
+
+### PVE Storage definitions
+# pve_storages -> dict={
+# 'storage' -> str: Storage ID.
+# 'type' -> str=Selection('btrfs', 'cephfs', 'cifs', 'dir', 'esxi', 'glusterfs', 'iscsi', 'iscsidirect', 'lvm',
+#                         'lvmthin', 'nfs', 'pbs', 'rbd', 'zfs', 'zfspool'): Storage type.
+#
+# 'authsupported' -> str: Auth supported.
+# 'base' -> str: Base volume. This volume is automatically activated.
+# 'blocksize' -> str: block size
+# 'bwlimit' -> str='[clone=<LIMIT>][,default=<LIMIT>][,migration=<LIMIT>][,move=<LIMIT>][,restore=<LIMIT>]':
+#                                                             Set I/O bandwidth limit for various operations (in KiB/s).
+# 'comstar_hg' -> str: host group for comstar views
+# 'comstar_tg' -> str: target group for comstar views
+# 'content' -> list[str]|str=AnyOf('images', 'rootdir', 'vztmpl', 'backup', 'iso', 'snippets', 'import'):
+#                                                          (Comma separated) List of allowed content types.
+#                                                          NOTE: 'rootdir' is used for Containers, and 'images' for VMs.
+# 'content-dirs' -> list[str]|str: Overrides for default content type directories.
+# 'create-base-path' -> bool: (default=true) Create the base directory if it doesn’t exist.
+# 'create-subdirs' -> bool: (default=true) Populate the directory with the default structure.
+# 'data-pool' -> str: Data Pool (for erasure coding only)
+# 'datastore' -> str: Proxmox Backup Server datastore name.
+# 'disable' -> bool: Flag to disable the storage.
+# 'domain' -> str: CIFS domain.
+# 'encryption-key' -> str: A file containing an encryption key, or the special value 'autogen'.
+#                         Encryption key. Use 'autogen' to generate one automatically without passphrase.
+# 'export' -> str: NFS export path.
+# 'fingerprint' -> str=regex('[A-Fa-f0-9]{2}:){31}[A-Fa-f0-9]{2}'): Certificate SHA 256 fingerprint.
+# 'format' -> str=Selection('qcow2', 'raw', 'subvol', 'vmdk'): Default image format.
+# 'fs-name' -> str: The Ceph filesystem name.
+# 'fuse' -> bool: Mount CephFS through FUSE.
+# 'is_mountpoint' -> str=Selection('yes', 'no'): (default='no') Assume the given path is an externally managed mountpoint
+#                                                and consider the storage offline if it is not mounted. Using a boolean (yes/no)
+#                                                value serves as a shortcut to using the target path in this field.
+# 'iscsiprovider' -> str: iscsi provider
+# 'keyring' -> str: Client keyring contents (for external clusters) to authenticate in the Ceph cluster.
+# 'krbd' -> bool: (default=false) Always access rbd through krbd kernel module.
+# 'lio_tpg' -> str: target portal group for Linux LIO targets
+# 'master-pubkey' -> str: Base64-encoded, PEM-formatted public RSA key.
+#                         Used to encrypt a copy of the encryption-key which will be added to each encrypted backup.
+# 'max-protected-backups' -> int=range(-1, N): (default = Unlimited for users with 'Datastore.Allocate' privilege, 5 for other users)
+#                                              Maximal number of protected backups per guest. Use -1 for unlimited.
+# 'monhost' -> str: IP addresses of monitors (for external clusters).
+# 'mountpoint' -> str: mount point
+# 'namespace' -> str: Namespace.
+# 'nocow' -> bool: (default=false) Set the NOCOW flag on files.
+#                                  Disables data checksumming and causes data errors to be unrecoverable from while allowing direct I/O.
+#                                  Only use this if data does not need to be any more safe than on a single ext4 formatted disk with no underlying raid system.
+# 'nodes' -> str: List of nodes for which the storage configuration applies.
+# 'nowritecache' -> bool: Disable write caching on the target.
+# 'options' -> str: NFS/CIFS mount options (see man nfs or man mount.cifs)
+# 'password' -> str: Password for accessing the share/datastore.
+# 'path' -> str: File system path.
+# 'pool' -> str: Pool.
+# 'port' -> int=range(1, 65535): Use this port to connect to the storage instead of the default one (for example, with PBS or ESXi).
+#                                For NFS and CIFS, use the options option to configure the port via the mount options.
+# 'portal' -> str: iSCSI portal (IP or DNS name with optional port).
+# 'preallocation' -> str=Selection('falloc', 'full', 'metadata', 'off'): (default='metadata') Preallocation mode for raw and qcow2 images.
+#                                                                        Using 'metadata' on raw images results in preallocation='off'.
+# 'prune-backups' -> str='[keep-all=<1|0>][,keep-daily=<N>][,keep-hourly=<N>][,keep-last=<N>][,keep-monthly=<N>][,keep-weekly=<N>][,keep-yearly=<N>]':
+#                         The retention options with shorter intervals are processed first with --keep-last being the very first one.
+#                         Each option covers a specific period of time. We say that backups within this period are covered by this option.
+#                         The next option does not take care of already covered backups and only considers older backups.
+# 'saferemove' -> bool: Zero-out data when removing LVs.
+# 'saferemove_throughput' -> str: Wipe throughput (cstream -t parameter value).
+# 'server' -> str: Server IP or DNS name.
+# 'server2' -> str: Backup volfile server IP or DNS name.
+#    Note 	Requires option(s): server
+# 'share' -> str: CIFS share.
+# 'shared' -> bool: Indicate that this is a single storage with the same contents on all nodes (or all listed in the 'nodes' option)
+#                   It will not make the contents of a local storage automatically accessible to other nodes, it just marks an already shared storage as such!
+# 'skip-cert-verification' -> bool: (default=false) Disable TLS certificate verification, only enable on fully trusted networks!
+# 'smbversion' -> str=Selection('2.0', '2.1', '3', '3.0', '3.11', 'default'): (default='default') SMB protocol version.
+#                               'default' negotiates the highest SMB2+ version supported by both the client and server.
+# 'sparse' -> bool: use sparse volumes
+# 'subdir' -> str: Subdir to mount.
+# 'tagged_only' -> bool: Only use logical volumes tagged with pve-vm-ID.
+# 'target' -> str: iSCSI target.
+# 'thinpool' -> str: LVM thin pool LV name.
+# 'transport' -> str=Selection('rdma', 'tcp', 'unix'): Gluster transport: tcp or rdma
+# 'username' -> str: RBD Id.
+# 'vgname' -> str: Volume group name.
+# 'volume' -> str: Glusterfs Volume.
+# } | list[dict={'storage': <storage>, …}]: (Declarative) PVE Storage definitions making physical storages available to PVE.
+#                                   NOTICE: Storage definitions are mappings between real/physical storage and PVE itself,
+#                                   telling PVE how to access the physical storage. Storage declared here is never created or initialized!
 pve_storages: []
-pve_metric_servers: []
-pve_ssh_port: 22
-pve_manage_ssh: true
-pve_hooks: {}
-pve_no_log: false
+
+### CEPH & CEPH CLUSTER
+# pve_ceph_enabled -> bool: (Irreversible) If ceph should be installed and configured for PVE. Mutually exclusive with pve_ceph_enhanced_enabled. EXPERIMENTAL
+#                                          NOTE: Requires pve_ceph_network to be set and correct.
+pve_ceph_enabled: false
+# TODO rename to 'pve_manage_ceph[_enhanced]'
+# pve_ceph_enhanced_enabled -> bool: (Irreversible) If an enhanced role should install and configure ceph for PVE. Mutually exclusive with pve_ceph_enabled.
+#                                                   NOTE: Requires pve_ceph_network to be set and correct.
+pve_ceph_enhanced_enabled: false
+# pve_ceph_network -> str: (Irreversible) Ceph public(/cluster) network in CIDR notation.
+#                                         NOTE: Aliased by "ceph_public_ip: <host_ip_address>/<netmask>" host variable.
+pve_ceph_network: "{{ (ansible_default_ipv4.network + '/' + ansible_default_ipv4.netmask) | ansible.utils.ipaddr('net') }}"
+# pve_ceph_cluster_network -> Optional[str]: (Irreversible) Separate Ceph cluster network if the Ceph public network should be different.
+#                                            NOTE: Aliased by "ceph_cluster_ip: <host_ip_address>/<netmask>" host variable.
+# (for more information, see https://pve.proxmox.com/pve-docs/chapter-pveceph.html#pve_ceph_install_wizard)
+pve_ceph_cluster_network: null
+# pve_ceph_cluster_min_replica -> int=range(1,7): (Irreversible) Minimum number of active replicas needed to allow IO.
+pve_ceph_cluster_min_replica: 2
+# pve_ceph_cluster_target_replica -> int=range(pve_ceph_cluster_min_replica + 1,7): (Irreversible) Target number of replicas.
+pve_ceph_cluster_target_replica: 3
+# pve_ceph_cluster_nocephx -> bool: (Irreversible) Disable Ceph cephx authentication.
+pve_ceph_cluster_nocephx: false
+# pve_ceph_nodes -> list[str|host]: (Irreversible)(ONLY if pve_cluster_enabled==false) Hosts on which to configure Ceph.
+pve_ceph_nodes: "{{ groups[pve_group] }}"
+# pve_ceph_mon_group -> list[str|host]: (Irreversible)(ONLY if pve_ceph_enabled) Hosts which run Ceph monitor service.
+pve_ceph_mon_group: "{{ pve_group }}"
+# pve_ceph_mgr_group: (Irreversible)(ONLY if pve_ceph_enabled) Hosts which run Ceph manager service.
+pve_ceph_mgr_group: "{{ pve_ceph_mon_group }}"
+# pve_ceph_mds_group: (Irreversible)(ONLY if pve_ceph_enabled) Hosts which run Ceph metadata server service.
+pve_ceph_mds_group: "{{ pve_group }}"
+# pve_ceph_mon_nodes -> list[str|host]: (Declarative)(ONLY if pve_ceph_enabled) List of nodes (inventory hostnames) that should become Ceph monitors.
+#                                                    Amount of exactly 3 (or 5) hosts is recommended.
+pve_ceph_mon_nodes:
+  "{{ groups[pve_ceph_mon_group] if (groups[pve_ceph_mon_group] | default([]) | length is odd) else groups[pve_group][:-1] }}"
+# pve_ceph_mgr_nodes -> list[str|host]: (Declarative) List of nodes (inventory hostnames) that should become Ceph managers.
+#                                                     Recommended to be the same nodes as in pve_ceph_mon_nodes.
+pve_ceph_mgr_nodes: "{{ pve_ceph_mon_nodes }}"
+# pve_ceph_mds_nodes -> list[dict={
+#  'hostname' -> str|host: (Required) Host where the Metadata Server should run. Must refer to an inventory hostname.
+#  'name' -> str: (Optional) Name of the Metadata Server. Only needed when placing more than one MDS on a host.
+#  'hotstandby' -> bool: (default=false) Whether a ceph-mds daemon should poll and replay the log of an active MDS.
+# }|str: List of inventory hostnames that should become MDS with the same name.
+# ]: (Declarative) (ONLY if pve_ceph_enhanced_enabled) List of Metadata-server-daemons for CephFS.
+pve_ceph_mds_nodes: "{{ groups[pve_group][:2] }}"
+
+### Ceph Config
+# pve_ceph_config -> Optional[list[dict={
+#  'name' -> str: Ceph config key name to set.
+#  'value' -> Optional[str|bool|int|float|list[str]]: Config value to set. Value of null resets config to default.
+#  'who' -> Optional[str=Selection['global', 'client', 'osd', 'mon', 'mgr', 'mds']]: (default='client') Entity to set the config key for.
+#  'separator' -> str: (Optional) Separator used for string list generation.
+#  <config key name> -> str: <config key value> -> Optional[str|bool|int|float|list[str]]: Mappings of Ceph config key-values in default scope ('client').
+#  }] | dict={
+#    <config value scope (who)> -> str=Selection['global', 'client', 'osd', 'mon', 'mgr', 'mds']:
+#      dict={ <config key name> -> str: <config key value> -> Optional[str|bool|int|float|list[str]] }
+# }]: (Declarative) (ONLY if pve_ceph_enhanced_enabled) Declare ceph config values. Undeclared config is not changed.
+#                                                       Declare config with {value: 'null'} to force defaults.
+pve_ceph_config: null # []
+
+### Ceph OSD
+# pve_ceph_osds -> list[dict={
+#  'device' -> str: ('device' or 'id' required) Block device path for OSD.
+#  'id' -> str: ('device' or 'id' required) Device path without the '/dev/disk/by-id/' prefix. (Takes precedence over 'device'.)
+#  'hosts' -> list[str]|str='all': (Optional) Hosts where OSD creation is applicable to. 'all' applies to all hosts (same as omitting it).
+#  'encrypted -> bool: (Optional) Use OSD (LUKS) encryption.
+# Following attributes ONLY if pve_ceph_enabled == true:
+#  'block.db' -> str: (Optional) db block device path.
+#  'block.wal' -> str: (Optional) wal block device path.
+# Following attributes ONLY if pve_ceph_enhanced_enabled == true:
+#  'db_dev' -> str: (Optional) wal block device path.
+#  'db_dev_size' -> int=range(1,inf): (Optional) Size in GiB for block.db device.
+#  'wal_dev' -> str: (Optional) wal block device path.
+#  'wal_dev_size' -> float=range(0.5,inf): (Optional) Size in GiB for block.wal device.
+#  'crush-device-class' -> str=Selection('hdd', 'ssd', 'nvme'): (Optional) CRUSH device class of the OSD.
+#  'osds-per-device' -> int=range(1,inf): (Optional) OSD services per physical device. Only useful for fast NVMe devices.
+# }]: (Declarative with pve_ceph_osds_destroy==true) Dict of block devices to provision as OSDs.
+pve_ceph_osds: []
+# pve_ceph_osds_destroy -> bool|list[str]: (Irreversible) If undeclared/missing OSDs should get destroyed or list of OSD IDs to be destroyed exclusively.
+pve_ceph_osds_destroy: false
+# pve_ceph_cleanup_out_osds -> Optional[list[str]=AnyOf('out', 'down', 'stray')]: (Irreversible)
+# If OSDs marked with any status in this list should get destroyed. Implies pve_ceph_osds_destroy == true.
+pve_ceph_cleanup_osd_status: null #["out"]
+# pve_ceph_wipe_destroyed_osds -> bool|integer: (Irreversible) If destroyed OSDs should get overwritten with zeroes,
+# an integer defines number of sectors to be overwritten from start and end of the osd device.
+pve_ceph_wipe_destroyed_osds: false
+# pve_osd_luks_key_preserve -> Optional[dict={
+# 'enabled' -> bool: (default=true) If OSD LUKS keys should get saved.
+# 'file' -> str|FilePath: Absolute file path on the target machine. (E.g. "{{ inventory_dir }}/osd-luks.keys")
+# 'host' -> str|host: Host on which LUKS keys should be saved. (E.g. "localhost" for ansible control node.)
+# }]: (Declarative) Define if and where OSD metadata should be saved to. (Including OSD LVM encryption keys.)
+pve_osd_luks_key_preserve: null
+
+
+### Ceph Pools
+# pve_ceph_pools -> list[dict={
+# 'name' -> ...
+# 'storage' -> ...
+# 'application' -> ...
+# 'rule' -> ...
+# 'autoscale_mode' -> ...
+# 'pgs' -> ...
+# 'size' -> ...
+# 'min_size' -> ...
+#  }]: (Irreversible)(ONLY if pve_ceph_enabled)
+#pve_ceph_pools: []
+
+# (ONLY if pve_ceph_enhanced_enabled)
+# pve_ceph_pools -> list[dict={
+#  'name' -> str: (Required) The name of the pool. It must be unique.
+#  'quota' -> float: (default=0.0) Pool quota in GibiBytes, 0 disables quota.
+#  'add_storages' -> bool: (default=false, for erasure coded pools: true) Optional, Configure VM and CT storage using the new pool.
+#  'application' -> str=Selection('cephfs', 'rbd', 'rgw'): (default='rbd') Optional, The application of the pool.
+#  'crush_rule' -> str: Optional, The rule to use for mapping object placement in the cluster.
+#  'erasure-coding' -> dict={
+#      k->int, m->int, device-class->str, failure-domain->str, prof  ile->str}: Optional, Create an erasure coded pool
+#      for RBD with an accompaning replicated pool for metadata storage. With EC, the common ceph options size,
+#      min_size and crush_rule parameters will be applied to the metadata pool.
+#  'min_size' -> int=range(1, 7): (default=2) Minimum number of replicas per object
+#  'pg_autoscale_mode' -> str=Selection("off", "on", "warn"): (default="warn") The automatic PG scaling mode of the pool.
+#  'pg_num' -> int=range(1, 32768): (default=128) Number of placement groups.
+#  'pg_num_min' -> int=range(-N - 32768): Minimal number of placement groups.
+#  'size' -> int=range(1, 7): (default=3) Number of replicas per object
+#  'target_size' -> str=regex('^(\d+(\.\d+)?)([KMGT])?$'): The estimated target size of the pool for the PG autoscaler.
+#  'target_size_ratio' -> float|int: The estimated target ratio of the pool for the PG autoscaler.
+#  'config' -> dict={
+#   <config name> -> str: <config value> -> str|int: Mapping of a pool-level Ceph configuration override.
+#  } | list[dict={
+#   <config name> -> str: <config value> -> str|int: Mapping of a pool-level Ceph configuration override.
+#   } | {
+#   'name' -> str: Ceph pool-level Ceph configuration
+#   'value' -> str|int: Ceph pool-level Ceph configuration value
+#  }]: Set additional Ceph configuration overrides per pool.
+# }]: (Declarative) List of rbd pools to create in ceph_enhanced role.
+pve_ceph_pools: []
+# pve_ceph_pool_delete -> bool: (Irreversible) If undeclared pools should get destroyed.
+pve_ceph_pool_destroy: false
+# pve_ceph_pool_force_delete -> bool: (Irreversible) If non-empty pools should get destroyed, when destroying pools.
+pve_ceph_pool_force_destroy: false
+# pve_ceph_default_pools -> list[str]: (DO NOT CHANGE!) Important internal default Ceph pool names which should not get deleted/managed.
+pve_ceph_default_pools:
+  - ".mgr"
+
+### Ceph RBD
+# pve_rbd_mirrors -> list[dict={
+#  'pool' -> str: Name of (source) Ceph pool to enable mirroring for.
+#  'source' -> str: Name of source Ceph cluster to mirror pool data from. Must equal an inventory group name.
+#  'target' -> str: Name of target Ceph cluster to mirror pool data to. Must equal an inventory group name.
+#  'create_pools' -> bool: (Optional)  !DO NOT USE THIS OPTION IN PROD! TESTING ONLY! If missing pools should be
+#                          auto created with default pveceph args in source or target if they do not exist.
+#                          Ceph pools must be declared in pve_ceph_pools!
+#  'mode' -> str=Selection('pool', 'image'): (default='pool') RBD mirror mode.
+#                          image: When configured in image mode, mirroring must be explicitly enabled on each image.
+#                          pool: When configured in pool mode, all images in the pool with the journaling feature enabled are mirrored.
+# TODO MW
+#  'automote' -> bool: (default=false) Automatically pro-/demote images in pools.
+# TODO MW
+#  'state' -> str=Selection('disabled', 'reverse', 'enabled'): (default='enabled') Used primarily for disaster recovery.
+#                           'disabled': Break and delete ("pause") mirror. Automatically promote images in target cluster if 'automote'==true.
+#                           'reverse': (Re-)create mirror in reverse declared direction. (Re-sync source cluster pool in case of failure.)
+#                           'enabled': (Re-)create mirror as declared. Automatically demote images in target cluster if 'automote'==true.
+#                           IN CASE OF SOURCE CLUSTER FAILURE:
+#                           It is recommended to cycle mirror states between: 'enabled' <-> 'disabled' <-> 'reverse'.
+#                           Data integrity cannot be guaranteed if state is changed from 'enabled' to 'reverse' (or vice versa)
+#                           because pool images must be locked as read-only at one point, thus risking loss of data.
+#  'tmp_file_dir' -> str|Path: (Optional) (default='/tmp') Path to an existing (temporary) directory on tmp_file_host for caching purposes.
+#  'tmp_file_host' -> str|Host: (Optional) Host for caching files (temporarily) when using this role for multiple cluster with multiple reruns.
+#                               This host must therefore be reachable on any rerun of this role. ('localhost' is recommended.)
+# }]: (Declarative)(ONLY if pve_ceph_enhanced_enabled) Declare one-way rbd pool mirrors between clusters.
+# For bidirectional mirroring, add another entry with swapped 'source' and 'target' but same pool and mode.
+pve_rbd_mirrors: []
+# pve_rbd_mirror_remove -> bool: (Irreversible) If undeclared mirror pools should get removed.
+pve_rbd_mirror_remove: true
+# pve_remove_secondary_images -> bool: (Irreversible) If secondary images in non-declared pools should get removed.
+pve_remove_secondary_images: false
+
+
+### CephFS
+# pve_ceph_fs -> list[dict={
+#  'name' -> str=regex(^[^:/\s]+$): (Required) The (UNIQUE!) ceph filesystem name. (No ':', '/', whitespace in name.)
+#  'add-storage' -> bool: (default=false) If this FS should get added as PVE storage for this cluster.
+#  'pg_num' -> int=range(8,32768): (default=128) Number of placement groups for the backing data pool. The metadata pool will use a quarter of this.
+#  'pools' -> dict={(equals pve_ceph_pools dict)}: (Optional) Additional pool configuration for the CephFS data-pools.
+#  'meta_pool' -> dict={(equals pve_ceph_pools dict)}: (Optional) Additional pool configuration for the CephFS metadata-pool.
+#  'auth' -> dict= {
+#    'perm' -> str=Selection('r', 'rw'): (default='r') Permission to grant. 'r' = read-only, 'rw' = read-write.
+#    'host' -> Optional[str|host]: On which host to store the credentials.
+#    'file' -> str|FilePath: (default='/tmp/cephfs_<name>.keyring') Where to store the credential file.
+#  }: Generate additional external access authentication user and keys for the CephFS fs.
+# } | str: Names of CephFS filesystems to create.
+# ] | dict={<name>: {…}, …}: (Declarative) Which CephFS to create.
+pve_ceph_fs: []
+
+### Ceph CRUSH customization
+# pve_ceph_backup_crushmap -> bool: If crush maps should get backed up to /etc/pve/ceph.
+pve_ceph_backup_crushmap: true
+# pve_ceph_tunable_profile -> Optional[str=
+# Selection('legacy', 'argonaut', 'bobtail', 'firefly', 'hammer', 'jewel', 'optimal', 'default')
+# ]: (Declarative) (default='default') Ceph tunables profile to set as baseline.
+pve_ceph_tunable_profile: null
+# pve_ceph_custom_crush_tunables -> list[dict={
+#  'name' -> str: Name of tunable option.
+#  'value' -> int: Value of tunable option.
+# }] | dict={
+#  <tunable option name> -> str: <tunable option value> -> int: Direct mapping of tunable options.
+# }: (Declarative) Custom CRUSH tunables.
+pve_ceph_custom_crush_tunables: []
+# pve_ceph_crush_custom_bucket_types -> list[dict={
+#  'type_id' -> int=range(12,inf): Bucket type id.
+#  'name' -> str: Custom bucket name.
+# }] | dict={
+#  <type_id> -> int=range(0,inf): <bucket_name> -> str: Direct mapping of bucket types (preferred).
+# }: List of additional custom CRUSH bucket types.
+pve_ceph_crush_custom_bucket_types: []
+# pve_ceph_crush_default_bucket_types -> list[dict={
+#  'type_id' -> int=range(0,inf): Bucket type id.
+#  'name' -> str: Bucket name.
+# }] | dict={
+#  <type_id> -> int=range(0,inf): <bucket_name> -> str: Direct mapping of bucket types (preferred).
+# }: (DO NOT CUSTOMIZE!) List of default CRUSH bucket types. !DO NOT CHANGE!
+pve_ceph_crush_default_bucket_types:
+  - type_id: 0
+    name: "osd"
+  - type_id: 1
+    name: "host"
+  - type_id: 2
+    name: "chassis"
+  - type_id: 3
+    name: "rack"
+  - type_id: 4
+    name: "row"
+  - type_id: 5
+    name: "pdu"
+  - type_id: 6
+    name: "pod"
+  - type_id: 7
+    name: "room"
+  - type_id: 8
+    name: "datacenter"
+  - type_id: 9
+    name: "zone"
+  - type_id: 10
+    name: "region"
+  - type_id: 11
+    name: "root"
+# pve_ceph_crush_rules -> list[dict={
+#  'rule_id' -> int=range(0,inf): (Required) Rule id.
+#  'rule_name' -> str: (Required) Rule name.
+#  'type' -> str=Selection['replicated'|'erasure']: Rule type.
+#  'steps' -> list[str]: List of steps as strings without the preceding "step" keyword.
+# }]: (Declarative) List of CRUSH rules.
+pve_ceph_crush_rules: []
+# pve_ceph_crush_buckets -> list[dict={
+#  'id' -> int=range(-inf,-1): (Optional) Bucket id. Omit it for autogenerated value.
+#  'name' -> str: (Required) Bucket name.
+#  'type_name' -> str: (Required) Bucket type name. Must be included in pve_ceph_crush_default_bucket_types or pve_ceph_crush_custom_bucket_types.
+#  'class_ids' -> dict={
+#   <class name> -> str: <class shadow id> -> int
+# }: (Optional) Direct mapping of device class and corresponding shadow id.
+#  'buckets' -> list[str, int]|str: (Optional) List of child bucket names or child bucket ids.
+# }]: (Declarative) Custom CRUSH bucket hierarchy definition. Default root and host buckets can always be omitted and referenced by name.
+pve_ceph_crush_buckets: []
+
+
+### ZFS
+# pve_zfs_enabled -> bool: (Declarative) Whether to install and configure ZFS packages
+pve_zfs_enabled: false
+# pve_zfs_options -> str: ZFS kernel module paramaters.
+# pve_zfs_options: "parameters to pass to zfs module"
+# pve_zfs_zed_email -> str: Email address for ZFS event daemon notifications
+# pve_zfs_zed_email: "email address for zfs events"
+# pve_zfs_create_volumes -> list[str]: Names of ZFS volumes to create
+pve_zfs_create_volumes: []
+
+
+### FILESYSTEMS
+# pve_filesystems -> dict={
+# <dev> -> str: (Required) Target path to block device.
+#  'host' -> list[str|host]: (default='all') On which hosts to create the filesystems. Special 'all' value applies to all hosts.
+#  'fstype' -> str=Selection(): (Required) Filesystem type to be created.
+#  'force' -> bool: (default=false) If filesystem on devices that already has filesystem can be overwritten.
+#  'opts' -> list[str]|str: List of options to be passed to mkfs command.
+#  'resizefs' -> bool: (default=true) If the block device and filesystem size differ, grow the filesystem into the space. Mutually exclusive with uuid.
+#  'uuid' -> str: Set filesystem’s UUID to the given value. Mutually exclusive with 'resizefs'.
+# } | list[dict={'dev': <dev>, …}]: (Irreversible) Additional filesystem to be created on each host locally.
+pve_filesystems: []

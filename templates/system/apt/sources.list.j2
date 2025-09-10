@@ -1,0 +1,8 @@
+##################################################################################
+## This file is created and managed by ansible-role-proxmox, task: 'system/apt' ##
+## Do not change it in any other way, because any changes will be overwritten.  ##
+##################################################################################
+
+{% for repo in pve_debian_repository_lines %}
+{{ repo }}    
+{% endfor %}

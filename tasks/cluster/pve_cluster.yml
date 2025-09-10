@@ -1,0 +1,114 @@
+---
+- name: Manage PVE cluster
+  tags:
+    - cluster
+    - pve_cluster
+  block:
+    - name: Remove PVE cluster nodes
+      tags:
+        - cluster_remove
+        - pve_cluster_remove
+      when: "inventory_hostname == _init_node"
+      block:
+        #  NOTE: Nodes cannot remove itself from PVE clusters:
+        #  "pvecm delnode <self>" -> "msg": "non-zero return code", "rc": 255, "stderr": "Cannot delete myself from cluster!"
+        # TODO what to do if no quorum exists?
+        - name: Remove non-declared PVE cluster nodes
+          ansible.builtin.command: "pvecm delnode {{ item }}"
+#          vars:
+#            item_hostvars: "{{ groups[pve_group] | map('extract', hostvars) | json_query(query_str) }}"
+#            query_str: "[?ansible_hostname == '{{ item }}']"
+          loop: "{{ _pve_cluster_nodes }}"
+          # when item/node not in groups[pve_group] or item/node._pve_active_cluster is not defined
+          # _pve_cluster_nodes always contains short hostnames (== ansible_hostname), so we need to resolve them.
+          when: "item not in _shrt2invname or hostvars[_shrt2invname[item]]._pve_active_cluster is false"
+          changed_when: true
+
+    - name: Create and initialize PVE cluster
+      tags:
+        - cluster_create
+        - pve_cluster_create
+      block:
+        # TODO: Merge cluster variables into single dict as in https://pve.proxmox.com/pve-docs/pvecm.1.html enabling dict2args support
+        - name: Initialize a Proxmox cluster
+          ansible.builtin.command: >-
+            pvecm create {{ pve_cluster_clustername }}
+            --link0 {{ pve_cluster_addr0 }}{% if pve_cluster_addr0_priority | default(false, true) %},priority={{ pve_cluster_addr0_priority }}{% endif %}
+            {% if pve_cluster_addr1 | default(false, true) %}
+            --link1 {{ pve_cluster_addr1 }}{% if pve_cluster_addr1_priority | default(false, true) %},priority={{ pve_cluster_addr1_priority }}{% endif %}
+            {% endif %}
+          args:
+            creates: "/etc/pve/corosync.conf"
+          when:
+            - "inventory_hostname == _init_node"
+            - "_pve_found_clusters | length == 0"
+            - "_pve_active_cluster is false"
+
+        - name: Wait for quorum on initialization node
+          # TODO just use "pvesh get /cluster/status --output-format json"
+          proxmox_query:
+            query: cluster/status
+          register: _pve_cluster_init
+          until: "(_pve_cluster_init | json_query(query_str)) == 1"
+          vars:
+            query_str: "response[?type=='cluster'].quorate | [0]"
+          retries: 5
+          delay: 5
+          when: "inventory_hostname == _init_node"
+
+    - name: Join missing cluster nodes
+      tags:
+        - cluster_add
+        - pve_cluster_add
+      block:
+        - name: Collect init node's SSH public host key and addresses for cluster joins
+          when: "inventory_hostname == _init_node"
+          block:
+            - name: Fetch own SSH public host key for cluster joins
+              ansible.builtin.command: "ssh-keyscan -t {{ pve_ssh_key_type }} {{ ansible_host }}"
+              register: _pve_ssh_public_key
+              changed_when: false
+
+            - name: Extract own SSH public host key
+              ansible.builtin.set_fact:
+                _pve_ssh_public_key: "{{ _pve_ssh_public_key.stdout_lines | last }}"
+
+        - name: Add nodes to Proxmox cluster
+          vars:
+            _pve_cluster_join_ip_address: "{{ hostvars[_init_node].pve_cluster_addr0 }}"
+          when:
+            - "_pve_active_cluster is false"
+            - "inventory_hostname != _init_node"
+            - "inventory_hostname in groups[pve_group]"
+          block:
+            - name: Add cluster initialization node as known host temporarily
+              ansible.builtin.blockinfile:
+                dest: "/root/.ssh/known_hosts"
+                create: true
+                mode: "0600"
+                marker: "# {mark}: public host key for cluster join"
+                content: "{{ _pve_cluster_join_ip_address | ansible.utils.ipaddr('address') }},{{ hostvars[_init_node].inventory_hostname}},{{ hostvars[_init_node].ansible_hostname}},{{ hostvars[_init_node]._pve_ssh_public_key }}"
+
+            - name: Hash the hostnames, to avoid join errors on security and privacy oriented pve servers
+              ansible.builtin.command:
+                cmd: "ssh-keygen -Hf /root/.ssh/known_hosts"
+              when: "pve_manage_ssh is true"
+
+            - name: Add node to Proxmox cluster
+              ansible.builtin.command: >-
+                pvecm add {{ _pve_cluster_join_ip_address }} --use_ssh
+                --link0 {{ pve_cluster_addr0 }}{% if pve_cluster_addr0_priority | default(false, true) %},priority={{ pve_cluster_addr0_priority }}{% endif %}
+                {% if pve_cluster_addr1 | default(false, true) %}
+                --link1 {{ pve_cluster_addr1 }}{% if pve_cluster_addr1_priority | default(false, true) %},priority={{ pve_cluster_addr1_priority }}{% endif %}
+                {% endif %}
+              # Ensure that nodes join one-by-one, because cluster joins create a lock.
+              throttle: 1
+              args:
+                creates: "/etc/pve/corosync.conf"
+
+            - name: Remove cluster initialization node as known host
+              ansible.builtin.blockinfile:
+                dest: "/root/.ssh/known_hosts"
+                state: absent
+                mode: "0600"
+                marker: "# {mark}: public host key for cluster join"

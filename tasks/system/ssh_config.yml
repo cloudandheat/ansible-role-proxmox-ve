@@ -1,0 +1,133 @@
+---
+- name: Prepare SSH configuration and key management
+  block:
+    - name: Collect list of SSH addresses
+      ansible.builtin.set_fact:
+        pve_cluster_ssh_addrs:
+          "{{ pve_domain | default(false, true) | ternary([ansible_hostname + '.' + pve_domain], [ansible_fqdn])
+            + [ansible_hostname]
+            + [ansible_host]
+            + [pve_cluster_addr0]
+            + [pve_cluster_addr1] | ansible.utils.ipaddr() }}"
+
+    - name: Ensure root SSH directory exists
+      ansible.builtin.file:
+        path: "/root/.ssh/"
+        state: directory
+        owner: "root"
+        group: "root"
+        mode: "0700"
+
+    - name: Create root SSH key pair for PVE
+      ansible.builtin.user:
+        name: root
+        generate_ssh_key: true
+        ssh_key_file: "/root/.ssh/id_{{ pve_ssh_key_type }}"
+        ssh_key_type: "{{ pve_ssh_key_type }}"
+        ssh_key_bits: "{{ pve_ssh_key_bits }}"
+        ssh_key_comment: "root@{{ ansible_fqdn }}"
+
+    - name: Fetch root SSH public key
+      ansible.builtin.slurp:
+        src: "/root/.ssh/id_{{ pve_ssh_key_type }}.pub"
+      register: _ssh_root_pubkey
+
+- name: Manage SSH key authorization
+  # TODO: Manage known_hosts in a similar way to authorized_keys. If a host is authorized, it should be known, therefore identified, too.
+  block:
+    - name: Authorize group hosts' root SSH public keys
+      ansible.builtin.template:
+        src: "system/ssh_config/authorized_keys.j2"
+        dest: "/root/.ssh/authorized_keys"
+        owner: "root"
+        group: "root"
+        mode: "0600"
+
+    - name: Check if PVE cluster filesystem exists
+      ansible.builtin.stat:
+        path: "/etc/pve/priv/"
+      register: _pve_cluster_stat_raw
+
+    - name: Set PVE cluster authorized_keys file
+      when: "_pve_cluster_stat_raw.stat.exists"
+      run_once: true # NOTICE: pmxcfs is a shared (ACID) filesystem, run once to prevent unnecessary writes.
+      block:
+        # NOTICE: Ansible's template module cannot create files on /etc/pve because atomic renames aren't supported by pmxcfs.
+        - name: Ensure PVE cluster authorized_keys file exists
+          ansible.builtin.file:
+            path: "/etc/pve/priv/authorized_keys"
+            state: touch
+            access_time: preserve
+            modification_time: preserve
+            owner: "root"
+            group: "www-data"
+            mode: "0600"
+
+        - name: Authorize group hosts' root SSH public keys when PVE installed
+          ansible.builtin.template:
+            src: "system/ssh_config/authorized_keys.j2"
+            dest: "/etc/pve/priv/authorized_keys"
+            owner: "root"
+            group: "www-data"
+            mode: "0600"
+
+- name: Manage SSH configuration
+  block:
+    - name: Ensure SSH config includes drop-in config
+      ansible.builtin.lineinfile:
+        dest: "/etc/ssh/ssh_config"
+        search_string: 'Include /etc/ssh/ssh_config.d/*.conf'
+        line: 'Include /etc/ssh/ssh_config.d/*.conf'
+        state: present
+        mode: "0644"
+      register: _ssh_config_raw
+
+    - name: Configure SSH clients for connecting to PVE cluster hosts
+      ansible.builtin.template:
+        src: "system/ssh_config/00_ssh_pve.conf.j2"
+        dest: "/etc/ssh/ssh_config.d/ssh_pve.conf"
+        mode: "0644"
+      register: _ssh_pve_config_raw
+
+    - name: Ensure SSH Daemon includes drop-in config
+      ansible.builtin.lineinfile:
+        dest: "/etc/ssh/sshd_config"
+        search_string: 'Include /etc/ssh/sshd_config.d/*.conf'
+        line: 'Include /etc/ssh/sshd_config.d/*.conf'
+        state: present
+        mode: "0644"
+      register: _sshd_config_raw
+
+    - name: Allow root logins from PVE cluster hosts
+      ansible.builtin.template:
+        src: "system/ssh_config/00_sshd_pve.conf.j2"
+        dest: "/etc/ssh/sshd_config.d/sshd_pve.conf"
+        mode: "0644"
+        validate: "/usr/sbin/sshd -t -f %s"
+      register: _sshd_pve_config_raw
+
+    - name: Ensure SSH service is enabled and started
+      ansible.builtin.systemd:
+        name: "ssh.service"
+        state: started
+        enabled: true
+
+    - name: Add PVE-provided ciphers to SSH client config
+      ansible.builtin.lineinfile:
+        dest: /root/.ssh/config
+        line: "Ciphers {{ pve_ssh_ciphers }}"
+        regexp: "^Ciphers .*"
+        insertbefore: BOF
+        create: true
+        mode: "0644"
+      register: _local_ssh_config_raw
+
+    - name: Reload SSH service
+      ansible.builtin.systemd:
+        name: "ssh.service"
+        state: reloaded
+      when: "_ssh_config_raw.changed
+             or _ssh_pve_config_raw.changed
+             or _sshd_config_raw.changed
+             or _sshd_pve_config_raw.changed
+             or _local_ssh_config_raw.changed"

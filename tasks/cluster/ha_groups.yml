@@ -1,0 +1,87 @@
+---
+- name: PVE HA groups management
+  when: "inventory_hostname == _init_node"
+  tags: ha_groups
+  block:
+    - name: Normalize PVE HA groups parameter
+      block:
+        - name: Normalize PVE HA groups parameter into list of dicts from list
+          ansible.builtin.set_fact:
+            _pve_ha_groups: "{{ pve_cluster_ha_groups }}"
+          when:
+            - "pve_cluster_ha_groups is iterable"
+
+        - name: Normalize PVE HA groups parameter into empty list if none
+          ansible.builtin.set_fact:
+            _pve_ha_groups: "{{ [] }}"
+          when: 
+            - "pve_cluster_ha_groups is none"
+    
+
+    - name: Prepare PVE HA groups management
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Check for existing PVE cluster HA groups
+          ansible.builtin.command:
+            cmd: "pvesh get /cluster/ha/groups --output-format json"
+          register: _ha_groups_raw
+
+        - name: Extract existing HA group data
+          ansible.builtin.set_fact:
+            _ha_groups: "{{ _ha_groups_raw.stdout | default([],true) }}"
+
+        - name: Determ HA group names for deletion, creation and modification
+          ansible.builtin.set_fact:
+            _ha_groups_del: "{{ _ha_groups_names | difference( _pve_ha_groups_names )  }}"
+            _ha_groups_create: "{{ _pve_ha_groups_names | difference( _ha_groups_names ) }}"
+            _ha_groups_modify: "{{ _pve_ha_groups_names | intersect( _ha_groups_names ) }}"
+          vars:
+            _ha_groups_names: "{{ _ha_groups | json_query('[*].group') }}"
+            _pve_ha_groups_names: "{{ _pve_ha_groups | json_query('[*].name') }}"
+
+    - name: Delete non-declared PVE HA groups
+      tags: ha_groups_delete
+      block:
+        - name: Delete non-declared PVE cluster HA groups
+          ansible.builtin.command:
+            "ha-manager groupremove {{ item }}"
+          loop: "{{ _ha_groups_del }}"
+
+    - name: Modify PVE HA groups
+      tags: ha_groups_modify
+      block:
+        - name: Modify existing PVE cluster HA groups
+          ansible.builtin.command:
+            "ha-manager groupset {{ item.name }}
+             --nofailback {{ _nofailback }}
+             --restricted {{ _restricted }}
+             --comment \"{{ _comment }}\"
+             --nodes {{ _nodes }}"
+          vars:
+            _nofailback: "{{ item.nofailback | default('0',true) }}"
+            _restricted: "{{ item.restricted | default('0',true) }}"
+            _comment: "{{ item.comment | default('\"\"',true) }}"
+            _nodes: "{{ item.nodes | default( groups[pve_group] , true ) | join(',') }}"
+          loop: "{{ _pve_ha_groups  }}"
+          when: "item.name in _ha_groups_modify"
+          register: _ha_mod_res
+
+    - name: Create PVE HA groups if they do not exists
+      tags: ha_groups_create
+      block:
+        - name: Create non-existing PVE cluster HA groups
+          ansible.builtin.command:
+            "ha-manager groupadd {{ item.name }}
+             --type {{ _type }}
+             --nofailback {{ _nofailback }}
+             --restricted {{ _restricted }}
+             --comment \"{{ _comment }}\"
+             --nodes {{ _nodes }}"
+          vars:
+            _type: "{{ item.type | default('group',true) }}"
+            _nofailback: "{{ item.nofailback | default('0',true) }}"
+            _restricted: "{{ item.restricted | default('0',true) }}"
+            _comment: "{{ item.comment | default('\"\"',true) }}"
+            _nodes: "{{ item.nodes | default( groups[pve_group] , true ) | join(',') }}"
+          loop: "{{ _pve_ha_groups  }}"
+          when: "item.name in _ha_groups_create"

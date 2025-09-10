@@ -1,0 +1,16 @@
+#########################################################################################
+## This file is created and managed by ansible-role-proxmox, task: 'system/ssh_config' ##
+## Do not change it in any other way, because any changes will be overwritten.         ##
+## Manual changes will likely break the Proxmox VE cluster, too.                       ##
+#########################################################################################
+
+{% for host in groups[pve_group] %}
+{{ hostvars[host]._ssh_root_pubkey.content | b64decode }}
+{% endfor %}
+# Additional non cluster member public keys:
+{% if pve_ssh_additional_authorized_keys is iterable %}
+{% for key in pve_ssh_additional_authorized_keys %}
+{{ key }}
+{% endfor %}
+{% endif %}
+

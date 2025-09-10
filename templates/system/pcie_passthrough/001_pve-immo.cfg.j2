@@ -1,0 +1,23 @@
+
+## This file is created and managed by ansible-role-proxmox task pcie_passthrought
+## Do not change it in any other way, because it will be overwritten
+
+{% if '\"GenuineIntel\" in ansible_processor | unique' %}
+GRUB_CMDLINE_LINUX=$GRUB_CMDLINE_LINUX intel_iommu=on
+{% endif %}
+
+{% if (pve_iommu_passthrough_mode | bool) %}
+GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX iommu=pt"
+{% endif %}
+
+{% if (pve_mediated_devices_enabled | bool) %}
+GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX i915.enable_gvt=1 i915.enable_guc=0"
+{% endif %}
+
+{% if (pve_pci_device_ids | length > 0) -%}
+GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX vfio-pci.ids=
+{% for dev in pve_pci_device_ids -%}
+{{ dev }}
+{% if dev != (pve_pci_device_ids | last) -%},{% endif -%}
+{% endfor %}
+{% endif %}

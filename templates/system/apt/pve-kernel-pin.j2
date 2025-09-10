@@ -1,0 +1,11 @@
+##################################################################################
+## This file is created and managed by ansible-role-proxmox, task: 'system/apt' ##
+## Do not change it in any other way, because any changes will be overwritten.  ##
+##################################################################################
+
+# Set Proxmox VE kernel version pinning
+{% if pve_pin_kernel_version | bool %}
+Package: proxmox-default-kernel
+Pin: version {{ pve_pin_kernel_version }}
+Pin-Priority: 1000
+{% endif %}

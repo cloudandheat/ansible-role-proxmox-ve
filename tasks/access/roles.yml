@@ -1,0 +1,76 @@
+---
+- name: Manage PVE roles
+  tags: roles
+  block:
+    - name: Normalize PVE roles parameter
+      block:
+        - name: Normalize PVE roles parameter into list of dicts from list
+          ansible.builtin.set_fact:
+            # transform from ["value",…, {<setting>:<value>,…}] into [{'roleid':<value>,…, <setting>: <value>,…}]
+            pve_roles: "{{ pve_roles | select('mapping') + pve_roles | reject('mapping') | json_query('[].{roleid: @}') }}"
+          when:
+            - "pve_roles is iterable"
+            - "pve_roles is not mapping"
+            - "pve_roles | reject('mapping') | length > 0"
+
+        - name: Normalize PVE roles parameter into list of dicts from mapping
+          ansible.builtin.set_fact:
+            # transform from {<roleid>:{<setting>: <value>, …}} into [{'roleid':…, <setting>: <value>, …}]
+            pve_roles: "{{ pve_roles | dict2items | json_query('[].merge({roleid: key}, not_null(value, {roleid: key}))') }}"
+          when: "pve_roles is mapping"
+
+        - name: Normalize PVE roles parameter into empty list if none
+          ansible.builtin.set_fact:
+            pve_roles: "{{ [] }}"
+          when: "pve_roles is none"
+
+    - name: Validate PVE roles parameter
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Ensure that every entry has a roleid
+          ansible.builtin.assert:
+            that: "item.roleid | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have a roleid!"
+          loop: "{{ pve_roles }}"
+
+    - name: Prepare PVE roles management
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Query PVE roles
+          ansible.builtin.command: "pvesh get /access/roles --output-format json"
+          register: _pve_roles_raw
+          changed_when: false
+
+        - name: Normalize PVE roles query
+          ansible.builtin.set_fact:
+            _pve_roles: "{{ _pve_roles_raw.stdout | default('[]', true) | from_json }}"
+
+    - name: Remove non-declared PVE roles
+      when: "inventory_hostname == _init_node"
+      tags: roles_remove
+      block:
+        - name: Remove PVE roles
+          ansible.builtin.command: "pvesh delete /access/roles/{{ item.roleid }}"
+          loop: "{{ _pve_roles | rejectattr('roleid', 'in', pve_roles | map(attribute='roleid')) }}"
+          when: "not item.special | default(false) | bool" # Roles with 'special' attribute are undeletable, predefined PVE system/internal.
+          changed_when: true
+
+    - name: Create missing PVE roles
+      when: "inventory_hostname == _init_node"
+      tags: roles_create
+      block:
+        - name: Create PVE roles
+          ansible.builtin.command:
+            "pvesh create /access/roles {{ item | dict2args(bool2int=true) }}"
+          loop: "{{ pve_roles | rejectattr('roleid', 'in', _pve_roles | map(attribute='roleid')) }}"
+          changed_when: true
+
+    - name: Modify existing PVE roles
+      when: "inventory_hostname == _init_node"
+      tags: roles_modify
+      block:
+        - name: Modify PVE roles
+          ansible.builtin.command:
+            "pvesh set /access/roles/{{ item.roleid }} {{ item | dict2args(bool2int=true, reject_keys=['roleid']) }}"
+          loop: "{{ pve_roles | selectattr('roleid', 'in', _pve_roles | map(attribute='roleid')) }}"
+          changed_when: true

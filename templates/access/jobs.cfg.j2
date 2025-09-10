@@ -1,0 +1,18 @@
+###################################################################################################
+## This file is created and managed by ansible-role-proxmox, task: 'access/realm_sync_jobs.yml'  ##
+## Do not change it in any other way, because any changes will be overwritten.                   ##
+###################################################################################################
+{# The jobs.cfg parser expects a blank line after each job and a TAB character before each key value pair #}
+
+{% for job in _pve_realm_sync_jobs %}
+realm-sync: {{ job.id }}
+{% for setting, value in job.items() %}
+{% if setting not in ['id'] %}
+{% if value is boolean %}
+{% set value = 1 if value else 0 %}
+{% endif %}
+{{ "\t" }}{{ setting }} {{ value }}
+{% endif %}
+{% endfor %}
+
+{% endfor %}

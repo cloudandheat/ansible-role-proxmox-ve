@@ -1,0 +1,409 @@
+---
+- name: Normalize, validate, prepare Ceph cluster parameters
+  tags:
+    - ceph_setup
+    - ceph_config
+    - ceph_osd
+    - ceph_crushmap
+    - ceph_pool
+    - ceph_rbd_mirror
+    - ceph_mds_fs
+  block:
+    - name: Normalize Ceph cluster parameters
+      block:
+        - name: Initialize temporary loop variable
+          ansible.builtin.set_fact:
+            _mon_loop: "{{ pve_ceph_mon_nodes }}"
+            pve_ceph_mon_nodes: "{{ [] }}"
+
+        - name: Resolve declared Ceph monitor names
+          ansible.builtin.set_fact:
+            pve_ceph_mon_nodes: "{{ pve_ceph_mon_nodes + [item_hostvars.inventory_hostname] }}"
+          vars:
+            # In case nodes are declared using not their inventory_hostname, we must resolve those names
+            item_hostvars: "{{ hostvars[item] | default(hostvars[_shrt2invname[item]]) | default(false) }}"
+          loop: "{{ _mon_loop }}"
+          when: "item_hostvars is not false"
+
+        - name: Collect declared Ceph monitors which are cluster members
+          ansible.builtin.set_fact:
+            pve_ceph_mon_nodes: "{{ pve_ceph_mon_nodes | intersect(groups[pve_group]) | unique }}"
+
+        - name: Initialize temporary loop variable
+          ansible.builtin.set_fact:
+            _mgr_loop: "{{ pve_ceph_mgr_nodes }}"
+            pve_ceph_mgr_nodes: "{{ [] }}"
+
+        - name: Resolve declared Ceph manager names
+          ansible.builtin.set_fact:
+            pve_ceph_mgr_nodes: "{{ pve_ceph_mgr_nodes + [item_hostvars.inventory_hostname] }}"
+          vars:
+            # In case nodes are declared using not their inventory_hostname, we must resolve those names
+            item_hostvars: "{{ hostvars[item] | default(hostvars[_shrt2invname[item]]) | default(false) }}"
+          loop: "{{ _mgr_loop }}"
+          when: "item_hostvars is not false"
+
+        - name: Collect declared Ceph managers which are cluster members
+          ansible.builtin.set_fact:
+            pve_ceph_mgr_nodes: "{{ pve_ceph_mgr_nodes | intersect(groups[pve_group]) | unique }}"
+
+    - name: Validate Ceph cluster parameters
+      block:
+        - name: Ensure we have a suitable number of Ceph monitors declared
+          ansible.builtin.assert:
+            that:
+              - "pve_ceph_mon_nodes | length is odd"
+              - "pve_ceph_mon_nodes | length > 2"
+            msg: "pve_ceph_mon_nodes defines an unsuitable number (not odd and >=3) of ceph monitor nodes for the cluster {{ pve_group }}."
+
+        - name: Ensure we have at least two Ceph manager nodes declared
+          ansible.builtin.assert:
+            that: "pve_ceph_mgr_nodes | length > 1"
+            msg: "pve_ceph_mgr_nodes should at least contain 2 (3 recommended) nodes for each cluster."
+
+    - name: Prepare Ceph cluster management
+      block:
+        - name: Query Ceph cluster status
+          ansible.builtin.command: "ceph status --format json"
+          register: _ceph_cluster_status_raw
+          ignore_errors: true
+          changed_when: false
+          failed_when: "_ceph_cluster_status_raw.rc not in [0, 1]"
+
+        - name: Extract Ceph cluster fsid
+          ansible.builtin.set_fact:
+            _ceph_cluster_id:
+              "{{ _ceph_cluster_status_raw.stdout | default('{}', true) | from_json | json_query('fsid') | default(false, true) }}"
+
+        - name: Display found Cluster IDs
+          ansible.builtin.debug:
+            msg: "Ceph cluster fsid: {{ _ceph_cluster_id }}"
+
+        - name: Appoint default Ceph cluster initiator host
+          ansible.builtin.set_fact:
+            _ceph_init_node: "{{ pve_cluster_initiator_host
+                               | default(groups[pve_group] | first, true)
+                               | default(inventory_hostname, true) }}"
+
+        - name: Ensure a monitor node is Ceph cluster initiator host
+          ansible.builtin.set_fact:
+            _ceph_init_node: "{{ item }}"
+          loop: "{{ pve_ceph_mon_nodes }}"
+          #          until: "_ceph_init_node in pve_ceph_mon_nodes" # TODO: use break_when instead (Ansible 2.18+)
+          when:
+            - "item in groups[pve_group]"
+            - "_ceph_init_node not in pve_ceph_mon_nodes"
+
+- name: Manage Ceph core cluster setup
+  tags: ceph_setup
+  block:
+    # TODO: Merge cluster variables into single dict as in https://pve.proxmox.com/pve-docs/pvecm.1.html enabling dict2args support
+    - name: Setup PVE Ceph cluster
+      when: "_ceph_cluster_id is false"
+      block:
+        - name: Create cluster if it does not exist
+          # NOTICE: Ceph cluster name must be 'ceph'. (https://docs.ceph.com/en/latest/rados/configuration/common/#naming-clusters-deprecated)
+          ansible.builtin.command: >-
+            pveceph init
+            --min_size {{ pve_ceph_cluster_min_replica }}
+            --size {{ pve_ceph_cluster_target_replica }}
+            --network {{ pve_ceph_network | ansible.utils.ipaddr('network/prefix') }}
+            {% if (pve_ceph_cluster_network | default('', true) | ansible.utils.ipaddr) is not false %} \
+            --cluster-network {{ pve_ceph_cluster_network | ansible.utils.ipaddr('network/prefix') }}
+            {% endif %}
+            {% if pve_ceph_cluster_nocephx | bool %} \
+            --disable-cephx {{ pve_ceph_cluster_nocephx | int }}
+            {% endif %}
+          args:
+            creates:
+              - "/etc/ceph/ceph.conf"
+              - "/etc/pve/priv/ceph.client.admin.keyring"
+          when: "inventory_hostname == _ceph_init_node"
+
+        - name: Init other Ceph cluster nodes
+          ansible.builtin.command: >-
+            pveceph init
+            --network {{ pve_ceph_network }}
+            {% if (pve_ceph_cluster_network | default('', true) | ansible.utils.ipaddr) is not false %} \
+            --cluster-network {{ pve_ceph_cluster_network }}
+            {% endif %}
+          args:
+            creates:
+              - "/etc/ceph/ceph.conf"
+          when: "inventory_hostname != _ceph_init_node"
+          throttle: 1
+          delay: 3
+
+    - name: Manage Ceph monitors
+      block:
+        - name: Prepare Ceph monitors management
+          block:
+            - name: Query Ceph monitor metadata
+              ansible.builtin.command: "ceph mon metadata --format json"
+              register: _ceph_mon_meta
+              ignore_errors: true
+              changed_when: false
+              failed_when: "_ceph_mon_meta.rc not in [0, 1]"
+
+            - name: Normalize Ceph monitor query
+              ansible.builtin.set_fact:
+                _ceph_known_mons: "{{ _ceph_mon_meta.stdout | default('[]', true) | from_json | json_query('[].name') }}"
+
+            - name: Display Ceph known monitors
+              ansible.builtin.debug:
+                msg: "Ceph known monitor nodes: {{ _ceph_known_mons }}"
+
+            - name: Stat Ceph monitor service
+              ansible.builtin.systemd:
+                name: "ceph-mon@{{ ansible_hostname }}.service"
+              register: _ceph_mon_service_raw
+
+            - name: Extract Ceph monitor status
+              ansible.builtin.set_fact:
+                _ceph_mon_active: "{{ _ceph_mon_service_raw.status.ActiveState | default('') == 'active' }}"
+
+            - name: Display Ceph monitor status
+              ansible.builtin.debug:
+                msg: "Is monitor node: {{ _ceph_mon_active }}"
+
+        - name: Prepare missing/unavailable monitor node removal(s)
+          when: "inventory_hostname == _ceph_init_node"
+          block:
+            - name: Initialize variable
+              ansible.builtin.set_fact:
+                _ceph_missing_mons: "{{ [] }}"
+
+            - name: Collect missing/unavailable monitor node(s)
+              ansible.builtin.set_fact:
+                _ceph_missing_mons: "{{ _ceph_missing_mons + [item] }}"
+              loop: "{{ _ceph_known_mons }}"
+              when:
+                # Jinja throws an error if <item> is not resolvable.
+                - "item not in _shrt2invname or not (hostvars[_shrt2invname[item]]._ceph_mon_active | default(false))"
+
+            - name: Read PVE Ceph conf file contents
+              ansible.builtin.slurp:
+                src: "/etc/pve/ceph.conf"
+              register: _pve_ceph_conf_raw
+
+            - name: Find monitor sections in PVE Ceph conf file
+              ansible.builtin.set_fact:
+                _pve_ceph_conf_mons: "{{ _pve_ceph_conf_raw.content | b64decode | regex_findall('\\[mon\\.(.+)\\]') }}"
+
+            - name: Display Ceph monitors in PVE Ceph conf
+              ansible.builtin.debug:
+                msg: "Monitor nodes in Ceph conf: {{ _pve_ceph_conf_mons }}"
+
+            - name: Collect leftover monitors from PVE Ceph conf
+              ansible.builtin.set_fact:
+                _ceph_missing_mons: "{{ _ceph_missing_mons + [item] }}"
+              loop: "{{ _pve_ceph_conf_mons }}"
+              when:
+                - "item not in _ceph_missing_mons"
+                - "not (hostvars[_shrt2invname[item]]._ceph_mon_active | default(false))"
+
+            - name: Display missing/unavailable Ceph monitors
+              ansible.builtin.debug:
+                msg: "Missing Ceph monitors: {{ _ceph_missing_mons }}"
+
+        - name: Remove missing/unavailable monitor node(s)
+          when:
+            - "inventory_hostname == _ceph_init_node"
+            - "_ceph_missing_mons | length > 0"
+          block:
+            - name: Remove node from Ceph monitor map
+              ansible.builtin.command: "ceph mon remove {{ item }}"
+              register: _ceph_mon_remove
+              loop: "{{ _ceph_missing_mons }}"
+              changed_when: true
+
+            - name: Collect active monitor addresses
+              ansible.builtin.set_fact:
+                _existing_mon_addrs: "{{ _existing_mon_addrs | default([]) + [ceph_pub_ip | ansible.utils.ipaddr('address')] }}"
+              vars:
+                all_ip_addrs: "{{ hostvars[_shrt2invname[item]].ansible_all_ipv4_addresses
+                                + hostvars[_shrt2invname[item]].ansible_all_ipv6_addresses }}"
+                ceph_pub_net: "{{ hostvars[_shrt2invname[item]].pve_ceph_network }}"
+                # Filter all ip addresses of host if they are in ceph_pub_net
+                ceph_pub_ip: "{{ all_ip_addrs | ansible.utils.ipaddr(ceph_pub_net) | first }}"
+              loop: "{{ _ceph_known_mons | difference(_ceph_missing_mons) }}"
+
+            - name: Remove missing monitor addresses from PVE Ceph conf file
+              ansible.builtin.ini_file:
+                path: "/etc/pve/ceph.conf"
+                section: "global"
+                option: "mon_host"
+                value: "{{ _existing_mon_addrs | join(' ') }}"
+                mode: "0640"
+
+            - name: Remove missing monitors mon section from PVE Ceph conf
+              ansible.builtin.ini_file:
+                path: "/etc/pve/ceph.conf"
+                section: "mon.{{ item }}"
+                state: absent
+                mode: "0640"
+              loop: "{{ _ceph_missing_mons }}"
+
+        - name: Create declared Ceph monitors
+          when:
+            - "inventory_hostname in pve_ceph_mon_nodes"
+          block:
+            - name: Create Ceph monitors
+              ansible.builtin.command: >-
+                pveceph mon create
+                {% if (ceph_public_ip | default('', true) | ansible.utils.ipaddr()) is not false %}
+                --mon-address {{ ceph_public_ip | ansible.utils.ipaddr('address') }}
+                {% endif %}
+              args:
+                creates: "/var/lib/ceph/mon/ceph-{{ ansible_hostname }}/"
+              register: _pveceph_mon_create
+              until: "_pveceph_mon_create.rc not in [255, 4]" #rc 255 = "Could not connect to ceph cluster despite configured monitors", rc 4 == timeout
+              throttle: 1
+              retries: 5
+              delay: 5
+
+            - name: Ensure Ceph monitor service is running and enabled
+              ansible.builtin.systemd:
+                name: "ceph-mon@{{ ansible_hostname }}.service"
+                state: started
+                enabled: true
+              register: _ceph_mon_service_raw
+              until: "_ceph_mon_service_raw.status.ActiveState | default('') == 'active'"
+              retries: 5
+              delay: 5
+
+        - name: Remove non-declared Ceph monitor nodes
+          when:
+            - "inventory_hostname not in pve_ceph_mon_nodes"
+            - "ansible_hostname in _ceph_known_mons"
+            - "_ceph_mon_active | bool"
+          block:
+            - name: Ensure Ceph monitor service is stopped
+              ansible.builtin.systemd:
+                name: "ceph-mon@{{ ansible_hostname }}.service"
+                state: stopped
+                enabled: false
+              register: _ceph_mon_service_raw
+              until: "_ceph_mon_service_raw.status.ActiveState | default('') in ['inactive', 'failed']"
+              retries: 5
+              delay: 5
+
+            - name: Reset failed monitor services # noqa: command-instead-of-module
+              ansible.builtin.command: "systemctl reset-failed ceph-mon@{{ ansible_hostname }}.service"
+              when: "_ceph_mon_service_raw.status.ActiveState | default('') == 'failed'"
+              changed_when: true
+
+            - name: Destroy monitor
+              ansible.builtin.command: "pveceph mon destroy {{ ansible_hostname }}"
+              changed_when: true
+
+            - name: Ensure Ceph monitor directory is removed
+              ansible.builtin.file:
+                path: "/var/lib/ceph/mon/ceph-{{ ansible_hostname }}"
+                state: absent
+
+    - name: Manage Ceph managers
+      block:
+        - name: Prepare Ceph managers management
+          block:
+            - name: Query Ceph manager metadata
+              ansible.builtin.command: "ceph mgr metadata --format json"
+              register: _ceph_mgr_meta_raw
+              ignore_errors: true
+              changed_when: false
+              failed_when: "_ceph_mgr_meta_raw.rc not in [0, 1]"
+
+            - name: Normalize Ceph manager query
+              ansible.builtin.set_fact:
+                _ceph_known_mgrs: "{{ _ceph_mgr_meta.stdout | default('[]', true) | from_json | json_query('[].name') }}"
+
+            - name: Display Ceph known managers
+              ansible.builtin.debug:
+                msg: "Ceph known manager nodes: {{ _ceph_known_mgrs }}"
+
+        - name: Create declared Ceph managers
+          when:
+            - "inventory_hostname in pve_ceph_mgr_nodes"
+          block:
+            - name: Create Ceph managers
+              ansible.builtin.command: "pveceph mgr create"
+              args:
+                creates: "/var/lib/ceph/mgr/ceph-{{ ansible_hostname }}/"
+              throttle: 1
+              retries: 5
+              delay: 5
+
+            - name: Ensure Ceph manager service is running and enabled
+              ansible.builtin.systemd:
+                name: "ceph-mgr@{{ ansible_hostname }}.service"
+                state: started
+                enabled: true
+              register: _ceph_mgr_service_raw
+              until: "_ceph_mgr_service_raw.status.ActiveState | default('') == 'active'"
+              retries: 5
+              delay: 5
+
+        - name: Remove non-declared Ceph manager nodes
+          when:
+            - "inventory_hostname not in pve_ceph_mgr_nodes"
+            - "ansible_hostname in _ceph_known_mgrs"
+          block:
+            - name: Ensure Ceph manager service is stopped
+              ansible.builtin.systemd:
+                name: "ceph-mgr@{{ ansible_hostname }}.service"
+                state: stopped
+                enabled: false
+              register: _ceph_mgr_service_raw
+              until: "_ceph_mgr_service_raw.status.ActiveState | default('') in ['inactive', 'failed']"
+              retries: 5
+              delay: 5
+
+            - name: Reset failed manager services # noqa: command-instead-of-module
+              ansible.builtin.command: "systemctl reset-failed ceph-mgr@{{ ansible_hostname }}.service"
+              when: "_ceph_mgr_service_raw.status.ActiveState | default('') == 'failed'"
+              changed_when: true
+
+            - name: Destroy manager
+              ansible.builtin.command: "pveceph mgr destroy {{ ansible_hostname }}"
+              changed_when: true
+
+            - name: Ensure Ceph manager directory is removed
+              ansible.builtin.file:
+                path: "/var/lib/ceph/mgr/ceph-{{ ansible_hostname }}"
+                state: absent
+
+# WARNING: THE IMPORT ORDER IS IMPORTANT!
+
+# Finished
+- name: Manage Ceph config
+  ansible.builtin.import_tasks: storage/ceph/config.yml
+  tags: ceph_config
+
+# Finished
+- name: Manage Ceph OSDs
+  ansible.builtin.import_tasks: storage/ceph/osds.yml
+  tags: ceph_osd
+
+# Finished
+# NOTICE: Execute after Ceph OSDs
+- name: Manage Ceph CRUSH map
+  ansible.builtin.import_tasks: storage/ceph/crushmap.yml
+  tags: ceph_crushmap
+
+# Finished
+# NOTICE: Execute after Ceph OSDs
+- name: Manage Ceph pools
+  ansible.builtin.import_tasks: storage/ceph/pools.yml
+  tags: ceph_pool
+
+# Finished
+# NOTICE: Execute after Ceph OSDs
+- name: Manage MDS and CephFS
+  ansible.builtin.import_tasks: storage/ceph/mds_fs.yml
+  tags: ceph_mds_fs
+
+# Finished
+# NOTICE: Execute after Ceph pools and CephFS
+- name: Manage RBD pool mirroring
+  ansible.builtin.import_tasks: storage/ceph/rbd_mirror.yml
+  tags: ceph_rbd_mirror

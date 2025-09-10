@@ -1,0 +1,15 @@
+
+- name: Create ZFS Pools
+  community.general.zfs:
+    name: "{{ item.pool }}"
+    state: present
+  with_items: "{{ pve_storages }}"
+  when: "item.type == 'zfspool'"
+  tags: storage
+
+- name: Create ZFS Volumes specified by user
+  community.general.zfs:
+    name: "{{ item }}"
+    state: present
+  with_items: "{{ pve_zfs_create_volumes }}"
+  tags: storage

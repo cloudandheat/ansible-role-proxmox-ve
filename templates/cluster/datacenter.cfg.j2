@@ -1,0 +1,8 @@
+##################################################################################################
+## This file is created and managed by ansible-role-proxmox, task: 'cluster/datacenter_options.yml' ##
+## Do not change it in any other way, because any changes will be overwritten.                  ##
+##################################################################################################
+
+{% for key, value in pve_datacenter_options.items() %}
+{{ key }}: {{ value }}
+{% endfor %}

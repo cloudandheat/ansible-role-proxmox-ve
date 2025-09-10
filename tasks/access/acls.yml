@@ -1,0 +1,156 @@
+---
+- name: Manage PVE ACLs
+  tags: acls
+  block:
+    - name: Normalize PVE ACLs parameter
+      block:
+        - name: Normalize PVE ACLs parameter into list of dicts from list
+          ansible.builtin.set_fact:
+            # transform from ["value",…, {<setting>:<value>,…}] into [{'path':<value>,…, <setting>: <value>,…}]
+            pve_acls: "{{ pve_acls | select('mapping') + pve_acls | reject('mapping') | json_query('[].{path: @}') }}"
+          when:
+            - "pve_acls is iterable"
+            - "pve_acls is not mapping"
+            - "pve_acls | reject('mapping') | length > 0"
+
+        - name: Normalize PVE ACLs parameter into list of dicts from mapping
+          ansible.builtin.set_fact:
+            # transform from {<path>:{<setting>: <value>, …}} into [{'path':…, <setting>: <value>, …}]
+            pve_acls: "{{ pve_acls | dict2items | json_query('[].merge({path: key}, not_null(value, {path: key}))') }}"
+          when: "pve_acls is mapping"
+
+        - name: Normalize PVE ACLs parameter into empty list if none
+          ansible.builtin.set_fact:
+            pve_acls: "{{ [] }}"
+          when: "pve_acls is none"
+
+    - name: Validate PVE ACLs parameter
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Ensure that every entry has a path
+          ansible.builtin.assert:
+            that: "item.path | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have a path!"
+          loop: "{{ pve_acls }}"
+
+        - name: Ensure that every entry has roles
+          ansible.builtin.assert:
+            that: "item.roles | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have roles!"
+          loop: "{{ pve_acls }}"
+
+        - name: Ensure that every entry has one of users, groups or tokens
+          ansible.builtin.assert:
+            that: "item.users | default(false, true) is not false
+                  or item.groups | default(false, true) is not false
+                  or item.tokens | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have at least users, groups or tokens!"
+          loop: "{{ pve_acls }}"
+
+    - name: Prepare PVE ACLs management
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Query PVE ACLs
+          ansible.builtin.command: "pvesh get /access/acl --output-format json"
+          register: _pve_acls_raw
+          changed_when: false
+
+        - name: Normalize PVE ACLs query
+          ansible.builtin.set_fact:
+            _pve_acls: "{{ _pve_acls_raw.stdout | default('[]', true) | from_json }}"
+
+        - name: Display existing PVE ACLs
+          ansible.builtin.debug:
+            msg: "{{ _pve_acls }}"
+
+        - name: Prepare PVE ACLs parameter
+          block:
+            - name: Create temporary loop variable
+              ansible.builtin.set_fact:
+                _tmp_pve_acls: "{{ [] }}"
+
+            - name: Normalize PVE ACLs parameter attributes
+              ansible.builtin.set_fact:
+                _tmp_pve_acls: "{{ _tmp_pve_acls + [item | combine(upd_item)] }}"
+              vars:
+                upd_item: "{{ {'path': acl_path, 'propagate': acl_propagate | int, 'roles': acl_roles | map('trim'),
+                              'users': acl_users | map('trim'), 'groups': acl_groups | map('trim'), 'tokens': acl_tokens | map('trim')} }}"
+                # Normalize acl path to start with '/', removing consecutive slashes and to not end with '/'.
+                # see https://github.com/proxmox/pve-access-control/blob/25dd3756f90afbf65799da4708b3df9c2bf7e9f6/src/PVE/AccessControl.pm#L1240
+                acl_path: "{{ item.path | regex_replace('/+$', '') | regex_replace('/+', '/') | regex_replace('^(?!/)', '/') | trim }}"
+                acl_propagate: "{{ 0 if (item.propagate | default(true)) is false else 1 }}"
+                decl_roles: "{{ item.roles | default('', true) }}"
+                acl_roles: "{{ (decl_roles | split(',') if decl_roles is string else decl_roles) | reject('==', '') }}"
+                decl_users: "{{ item.users | default('', true) }}"
+                acl_users: "{{ (decl_users | split(',') if decl_users is string else decl_users) | reject('==', '') }}"
+                decl_groups: "{{ item.groups | default('', true) }}"
+                acl_groups: "{{ (decl_groups | split(',') if decl_groups is string else decl_groups) | reject('==', '') }}"
+                decl_tokens: "{{ item.tokens | default('', true) }}"
+                acl_tokens: "{{ (decl_tokens | split(',') if decl_tokens is string else decl_tokens) | reject('==', '') }}"
+              loop: "{{ pve_acls }}"
+
+            - name: Apply normalized PVE ACLs parameter attributes
+              ansible.builtin.set_fact:
+                pve_acls: "{{ _tmp_pve_acls }}"
+                _tmp_pve_acls: "{{ [] }}"
+
+            - name: Expanding PVE ACLs parameter by roles attribute
+              ansible.builtin.set_fact:
+                _tmp_pve_acls: "{{ _tmp_pve_acls + item.roles | json_query('[].{roleid: @}') | map('combine', upd_item) }}"
+              vars:
+                upd_item: "{{ item | ansible.utils.remove_keys(target=['roles']) }}"
+              loop: "{{ pve_acls }}"
+
+            - name: Apply PVE ACLs parameter roles attribute expansion
+              ansible.builtin.set_fact:
+                pve_acls: "{{ _tmp_pve_acls }}"
+                _tmp_pve_acls: "{{ [] }}"
+
+            - name: Expanding PVE ACLs parameter by users, groups, tokens attributes
+              ansible.builtin.set_fact:
+                _tmp_pve_acls: "{{ _tmp_pve_acls
+                                  + item.users | json_query(query_user) | map('combine', upd_item)
+                                  + item.groups | json_query(query_group) | map('combine', upd_item)
+                                  + item.tokens | json_query(query_token) | map('combine', upd_item) }}"
+              vars:
+                upd_item: "{{ item | ansible.utils.remove_keys(target=['users', 'groups', 'tokens']) }}"
+                query_user: "[].{ugid: @, type: 'user'}"
+                query_group: "[].{ugid: @, type: 'group'}"
+                query_token: "[].{ugid: @, type: 'token'}"
+              loop: "{{ pve_acls }}"
+
+            - name: Apply PVE ACLs parameter expansion
+              ansible.builtin.set_fact:
+                pve_acls: "{{ _tmp_pve_acls }}"
+                _tmp_pve_acls: "{{ [] }}"
+
+            - name: Display normalized PVE ACLs parameter
+              ansible.builtin.debug:
+                msg: "pve_acls: {{ pve_acls }}"
+
+    - name: Remove non-declared PVE ACLs
+      when: "inventory_hostname == _init_node"
+      tags: acls_remove
+      block:
+        - name: Remove non-declared PVE ACLs
+          ansible.builtin.command:
+            "pvesh set /access/acl --delete 1 --path {{ item.path }} --roles {{ item.roleid }} --{{ item.type }}s {{ item.ugid }}"
+          loop: "{{ _pve_acls }}"
+          when: "pve_acls | selectattr('path', '==', item.path) | selectattr('roleid', '==', item.roleid)
+                | selectattr('ugid', '==', item.ugid) | length == 0"
+          changed_when: true
+
+    - name: Set PVE ACLs
+      when: "inventory_hostname == _init_node"
+      tags:
+        - acls_create
+        - acls_modify
+      block:
+        - name: Set PVE ACLs for users
+          ansible.builtin.command:
+            "pvesh set /access/acl/ --roles {{ item.roleid }} --{{ item.type }}s {{ item.ugid }}
+             {{ item | dict2args(bool2int=true, reject_keys=['roleid', 'type', 'ugid']) }}"
+          loop: "{{ pve_acls }}"
+          when: "_pve_acls | selectattr('path', '==', item.path) | selectattr('roleid', '==', item.roleid)
+                | selectattr('ugid', '==', item.ugid) | selectattr('propagate', '==', item.propagate) | length == 0"
+          changed_when: true

@@ -1,0 +1,72 @@
+---
+# TODO WIP
+- name: Manage local filesystems
+  tags: filesystems
+  block:
+    - name: Normalize local filesystems parameter
+      block:
+        - name: Normalize local filesystems parameter into list of dicts from mapping
+          ansible.builtin.set_fact:
+            # transform from {<dev>:{<setting>: <value>, …}} into [{'dev':…, <setting>: <value>, …}]
+            pve_filesystems: "{{ pve_filesystems | dict2items | json_query('[].merge({dev: key}, not_null(value, {dev: key}))') }}"
+          when: "pve_filesystems is mapping"
+
+        - name: Normalize local filesystems parameter into empty list if none
+          ansible.builtin.set_fact:
+            pve_filesystems: "{{ [] }}"
+          when: "pve_filesystems is none"
+
+    - name: Validate local filesystems parameter
+      block:
+        - name: Ensure that every entry has a dev
+          ansible.builtin.assert:
+            that: "item.dev | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have a dev!"
+          loop: "{{ pve_filesystems }}"
+
+        - name: Ensure that every entry has a fstype
+          ansible.builtin.assert:
+            that: "item.fstype | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have a fstype!"
+          loop: "{{ pve_filesystems }}"
+
+    - name: Prepare local filesystems management
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Query local filesystems
+          ansible.builtin.command: "echo"
+          register: _pve_filesystems_raw
+          changed_when: false
+
+        - name: Normalize local filesystems query
+          ansible.builtin.set_fact:
+            _pve_filesystems: "{{ _pve_filesystems_raw.stdout | default('[]', true) | from_json }}"
+
+        - name: Filter local filesystems query
+          ansible.builtin.set_fact:
+            _pve_filesystems: "{{ [] }}"
+
+    - name: Remove non-declared local filesystems
+      tags: filesystems_remove
+      block:
+        - name: Remove local filesystems
+          ansible.builtin.command: "echo"
+          loop: "{{ [] }}"
+          changed_when: true
+
+    - name: Create missing local filesystems
+      tags: filesystems_create
+      block:
+        - name: Create local filesystems
+          community.general.filesystem:
+            dev: "{{ item.dev }}"
+            fstype: "{{ item.fstype }}"
+            state: present
+            force: "{{ item.force | default(false) }}"
+            opts: "{{ item.opts | default(omit) }}"
+            resizefs: "{{ item.resizefs | default(omit) }}"
+            uuid: "{{ item.uuid | default(omit) }}"
+          loop: "{{ pve_filesystems }}"
+          when: "([ansible_hostname, inventory_hostname] | intersect(item.hosts | default([], true))) | length > 0
+                  or item.hosts | default('all', true) == 'all'"
+

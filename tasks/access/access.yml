@@ -1,0 +1,50 @@
+---
+- name: Ensure an init node is appointed
+  ansible.builtin.set_fact:
+    _init_node:
+      "{{ pve_cluster_enabled | ternary(pve_cluster_initiator_host | default(groups[pve_group] | first, true), inventory_hostname) }}"
+  when: "_init_node | default(false, true) is false"
+  tags:
+    - realms
+    - realm_sync_jobs
+    - users
+    - groups
+    - roles
+    - pools
+    - acls
+
+# WARNING: THE IMPORT ORDER IS IMPORTANT!
+
+# Finished
+- name: Run PVE realms tasks
+  ansible.builtin.import_tasks: access/realms.yml
+
+# Finished
+- name: Run PVE realms sync jobs tasks
+  ansible.builtin.import_tasks: access/realm_sync_jobs.yml
+
+# Finished
+# NOTICE: Execute after realm tasks/sync to catch possibly left over groups
+- name: Run PVE groups tasks
+  ansible.builtin.import_tasks: access/groups.yml
+
+# Finished
+# NOTICE: Execute after realm tasks/sync to catch possibly left over users
+- name: Run PVE users tasks
+  ansible.builtin.import_tasks: access/users.yml
+
+  # - name: Run PVE user token tasks
+  # ansible.builtin.import_tasks: access/user_token.yml
+
+# Finished
+- name: Run PVE pools tasks
+  ansible.builtin.import_tasks: access/pools.yml
+
+# Finished
+- name: Run PVE roles tasks
+  ansible.builtin.import_tasks: access/roles.yml
+
+# Finished
+# NOTICE: Execute after roles, users, groups, pools tasks
+- name: Run PVE acls tasks
+  ansible.builtin.import_tasks: access/acls.yml

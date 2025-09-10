@@ -1,0 +1,274 @@
+---
+- name: Manage PVE pools
+  tags: pools
+  block:
+    - name: Normalize PVE pools parameter
+      block:
+        - name: Normalize PVE pools parameter into list of dicts from list
+          ansible.builtin.set_fact:
+            # transform from ["value",…, {<setting>:<value>,…}] into [{'poolid':<value>,…, <setting>: <value>,…}]
+            pve_pools: "{{ pve_pools | select('mapping') + pve_pools | reject('mapping') | json_query('[].{poolid: @}') }}"
+          when:
+            - "pve_pools is iterable"
+            - "pve_pools is not mapping"
+            - "pve_pools | reject('mapping') | length > 0"
+
+        - name: Normalize PVE pools parameter into list of dicts from mapping
+          ansible.builtin.set_fact:
+            # transform from {<poolid>:{<setting>: <value>, …}} into [{'poolid':…, <setting>: <value>, …}]
+            pve_pools: "{{ pve_pools | dict2items | json_query('[].merge({poolid: key}, not_null(value, {poolid: key}))') }}"
+          when: "pve_pools is mapping"
+
+        - name: Normalize PVE pools parameter into empty list if none
+          ansible.builtin.set_fact:
+            pve_pools: "{{ [] }}"
+          when: "pve_pools is none"
+
+    - name: Validate PVE pools parameter
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Ensure that every entry has a poolid
+          ansible.builtin.assert:
+            that: "item.poolid | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have a poolid!"
+          loop: "{{ pve_pools }}"
+
+        - name: Ensure that every vmid is an integer
+          ansible.builtin.assert:
+            that: "item.vms | map('int') | map('string') == item.vms | map('string')"
+            msg: "Definition of '{{ item }}' has non-integer vmid in vms attribute!"
+          loop: "{{ pve_pools | selectattr('vms', 'defined') }}"
+
+    - name: Prepare PVE pools management
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Query PVE pools list
+          ansible.builtin.command: "pvesh get /pools --output-format json"
+          register: _pve_pools_raw
+          changed_when: false
+
+        - name: Normalize PVE pools list
+          ansible.builtin.set_fact:
+            _pve_pools: "{{ _pve_pools_raw.stdout | default('[]', true) | from_json }}"
+
+    - name: Remove non-declared PVE pools
+      when: "inventory_hostname == _init_node"
+      tags: pools_remove
+      block:
+        - name: Query extended info on PVE pools for removal
+          ansible.builtin.command: "pvesh get /pools --poolid {{ item.poolid }} --output-format json"
+          register: _pvesh_pools_get_raws
+          changed_when: false
+          loop: "{{ _pve_pools | rejectattr('poolid', 'in', pve_pools | map(attribute='poolid')) }}"
+
+        - name: Normalize extended PVE pool query
+          ansible.builtin.set_fact:
+            # Normalize into [{poolid: <poolid>, vm: <list of vmids>, storage: <list of storage names>}]
+            _pve_pools_remove: "{{ _pve_pools_remove | default([]) + item.stdout | from_json | json_query(query_str) }}"
+          vars:
+            query_str: "[].{poolid: poolid,
+                            comment: comment,
+                            members: members,
+                            storage: members[?type == 'storage'].storage,
+                            vms: members[?type == 'qemu' || type == 'lxc'].vmid}"
+          loop: "{{ _pvesh_pools_get_raws.results }}"
+          loop_control:
+            label: "{{ item.item }}"
+
+        - name: Display PVE pools marked for removal
+          ansible.builtin.debug:
+            msg: "_pve_pools_remove: {{ _pve_pools_remove | default('UNDEF') }}"
+
+        - name: Empty PVE pools storage members for removal
+          ansible.builtin.command:
+            "pvesh set /pools --delete 1 {{ item | dict2args(bool2int=true, select_keys=['poolid', 'storage']) }}"
+          loop: "{{ _pve_pools_remove | default([]) }}"
+          loop_control:
+            label: "{{ item.poolid }}"
+          when: "item.storage | length > 0"
+          changed_when: true
+
+        - name: Empty PVE pools qemu/lxc members for removal
+          ansible.builtin.command:
+            "pvesh set /pools --delete 1 {{ item | dict2args(bool2int=true, select_keys=['poolid', 'vms']) }}"
+          loop: "{{ _pve_pools_remove | default([]) }}"
+          loop_control:
+            label: "{{ item.poolid }}"
+          when: "item.vms | length > 0"
+          changed_when: true
+
+        - name: Remove PVE pools
+          ansible.builtin.command: "pvesh delete /pools --poolid {{ item.poolid }}"
+          loop: "{{ _pve_pools_remove | default([]) }}"
+          loop_control:
+            label: "{{ item.poolid }}"
+          changed_when: true
+
+    - name: Create missing PVE pools
+      when: "inventory_hostname == _init_node"
+      tags: pools_create
+      block:
+        - name: Create PVE pools
+          ansible.builtin.command:
+            "pvesh create /pools {{ item | dict2args(bool2int=true, select_keys=['poolid', 'comment']) }}"
+          loop: "{{ pve_pools | rejectattr('poolid', 'in', _pve_pools | map(attribute='poolid')) }}"
+          changed_when: true
+
+    - name: Modify existing PVE pools
+      when: "inventory_hostname == _init_node"
+      tags: pools_modify
+      block:
+        # NOTICE: pools must always be set, even newly created ones to apply storage/vms/allow-move/… parameters.
+        - name: Prepare PVE pools modification
+          block:
+            - name: Initialize variables
+              ansible.builtin.set_fact:
+                _pve_pools_mod: "{{ [] }}"
+                _pve_pools_rem: "{{ [] }}"
+                _pve_pools_add: "{{ [] }}"
+
+            - name: Query extended info on PVE pools
+              ansible.builtin.command: "pvesh get /pools --poolid {{ item.poolid }} --output-format json"
+              register: _pvesh_pools_get_raws
+              changed_when: false
+              loop: "{{ pve_pools }}"
+
+            - name: Normalize extended PVE pool query
+              ansible.builtin.set_fact:
+                # Normalize into [{poolid: <poolid>, vm: <list of vmids>, storage: <list of storage names>}]
+                _pve_pools_mod: "{{ _pve_pools_mod + item.stdout | from_json | json_query(query_str) }}"
+              vars:
+                query_str: "[].{poolid: poolid,
+                                comment: comment,
+                                members: members,
+                                storage: members[?type == 'storage'].storage,
+                                vms: members[?type == 'qemu' || type == 'lxc'].vmid}"
+              loop: "{{ _pvesh_pools_get_raws.results }}"
+              loop_control:
+                label: "{{ item.item }}"
+
+            # WORKAROUND: Read actual pool members from PVE user.cfg because pvesh won't do it...
+            # This way, pools can pre-include not yet existing members without getting errors about re-adding members.
+            - name: Read actual pool members from config file
+              block:
+                - name: Initialize variables
+                  ansible.builtin.set_fact:
+                    _pve_user_cfg_pools: "{{ [] }}"
+                    _pve_user_cfg_lines: "{{ [] }}"
+
+                - name: Detect existence of PVE user config file (It is missing on root@pam only systems)
+                  ansible.builtin.stat:
+                    path: "/etc/pve/user.cfg"
+                  register: _user_cfg_stat_raw
+
+                - name: Read PVE user config file
+                  ansible.builtin.slurp:
+                    path: "/etc/pve/user.cfg"
+                  register: _user_cfg_raw
+                  when: "_user_cfg_stat_raw.stat.exists"
+
+                - name: Extract lines from PVE user config file
+                  ansible.builtin.set_fact:
+                    _pve_user_cfg_lines: "{{ _user_cfg_raw.content | b64decode | split('\n') | select('match', '^pool:') }}"
+                  when: "_user_cfg_raw.content is defined"
+
+                - name: Extract info from PVE user config file lines
+                  ansible.builtin.set_fact:
+                    _pve_user_cfg_pools: "{{ _pve_user_cfg_pools + [{'poolid': poolid, 'vms': vms, 'storage': storage}] }}"
+                  vars:
+                    split_line: "{{ item | split(':') }}"
+                    poolid: "{{ split_line[1] }}"
+                    vms: "{{ split_line[-3] | split(',') | reject('==', '') | map('int') }}"
+                    storage: "{{ split_line[-2] | split(',') | reject('==', '') }}"
+                  loop: "{{ _pve_user_cfg_lines }}"
+
+                - name: Merge actual pool members with reported members
+                  ansible.builtin.set_fact:
+                    _pve_pools_mod: "{{ _pve_pools_mod | rejectattr('poolid', '==', item.poolid)
+                                      + [rep_item | combine({'vms': res_vms, 'storage': res_sto}, list_merge='replace')] }}"
+                  vars:
+                    rep_item: "{{ _pve_pools_mod | selectattr('poolid', '==', item.poolid) | first }}"
+                    res_vms: "{{ rep_item.vms | union(item.vms) | unique }}"
+                    res_sto: "{{ rep_item.storage | union(item.storage) | unique }}"
+                  loop: "{{ _pve_user_cfg_pools }}"
+
+            - name: Display found PVE pool info
+              ansible.builtin.debug:
+                msg: "_pve_pools_mod: {{ _pve_pools_mod }}"
+
+        - name: Collect PVE pool attributes to remove
+          ansible.builtin.set_fact:
+            _pve_pools_rem: "{{ _pve_pools_rem + [{'poolid': item.poolid, 'storage': sto_rem, 'vms': vms_rem}] }}"
+          vars:
+            decl_pool: "{{ pve_pools | selectattr('poolid', '==', item.poolid) | first }}"
+            sto_rem: "{{ item.storage | difference(decl_pool.storage | default([], true)) }}"
+            vms_rem: "{{ item.vms | difference(decl_pool.vms | default([], true) | map('int')) }}"
+          loop: "{{ _pve_pools_mod }}"
+          loop_control:
+            label: "{{ item.poolid }}"
+          when: "(sto_rem | length + vms_rem | length) > 0"
+
+        - name: Display PVE pool members marked for removal
+          ansible.builtin.debug:
+            msg: "_pve_pools_rem: {{ _pve_pools_rem }}"
+
+        - name: Modify PVE pools to remove missing storages
+          ansible.builtin.command:
+            "pvesh set /pools --delete 1 {{ item | dict2args(bool2int=true, select_keys=['poolid', 'storage']) }}"
+          loop: "{{ _pve_pools_rem }}"
+          when: "item.storage | length > 0"
+          changed_when: true
+
+        - name: Modify PVE pools to remove missing vms
+          ansible.builtin.command:
+            "pvesh set /pools --delete 1 {{ item | dict2args(bool2int=true, select_keys=['poolid', 'vms']) }}"
+          loop: "{{ _pve_pools_rem }}"
+          when: "item.vms | length > 0"
+          changed_when: true
+
+        - name: Collect PVE pool attributes to add
+          ansible.builtin.set_fact:
+            _pve_pools_add: # Notice: item | combine -> doesn't omit possible other (e.g. 'allow-move') attributes
+              "{{ _pve_pools_add + [item | combine({'storage': sto_add, 'vms': vms_add}, list_merge='replace')] }}"
+          vars:
+            curr_pool: "{{ _pve_pools_mod | selectattr('poolid', '==', item.poolid) | first }}"
+            sto_add: "{{ item.storage | default([], true) | difference(curr_pool.storage) }}"
+            vms_add: "{{ item.vms | default([], true) | map('int') | difference(curr_pool.vms) }}"
+          loop: "{{ pve_pools }}"
+          loop_control:
+            label: "{{ item.poolid }}"
+          when: "(sto_add | length + vms_add | length) > 0"
+
+        - name: Display PVE pool members marked for addition
+          ansible.builtin.debug:
+            msg: "_pve_pools_add: {{ _pve_pools_add }}"
+
+        # NOTICE: pvesh is buggy and ignores pools members when they don't exist on reading, but happily adds them on writing pool definitions.
+        - name: Modify PVE pools to add missing storages
+          ansible.builtin.command:
+            "pvesh set /pools {{ item | dict2args(bool2int=true, reject_keys=['members', 'comment', 'vms']) }}"
+          loop: "{{ _pve_pools_add }}"
+          loop_control:
+            label: "{{ item.poolid }}"
+          when: "item.storage | length > 0"
+          changed_when: true
+
+        - name: Modify PVE pools to add missing vms
+          ansible.builtin.command:
+            "pvesh set /pools {{ item | dict2args(bool2int=true, reject_keys=['members', 'comment', 'storage']) }}"
+          loop: "{{ _pve_pools_add }}"
+          loop_control:
+            label: "{{ item.poolid }}"
+          when: "item.vms | length > 0"
+          changed_when: true
+
+        - name: Modify PVE pools comment
+          ansible.builtin.command:
+            "pvesh set /pools --poolid {{ item.poolid }} --comment \"{{ item.comment | default('', true) }}\""
+          vars:
+            query_str: "[?poolid == '{{ item.poolid }}'].comment"
+          loop: "{{ pve_pools }}"
+          loop_control:
+            label: "{{ item.poolid }}"
+          when: "item.comment | default('') != _pve_pools_mod | json_query(query_str) | default('')"
+          changed_when: true

@@ -1,0 +1,81 @@
+---
+- name: Manage PVE groups
+  tags: groups
+  block:
+    - name: Normalize PVE groups parameter
+      block:
+        - name: Normalize PVE groups parameter into list of dicts from list
+          ansible.builtin.set_fact:
+            # transform from ["value",…, {<setting>:<value>,…}] into [{'groupid':<value>,…, <setting>: <value>,…}]
+            pve_groups: "{{ pve_groups | select('mapping') + pve_groups | reject('mapping') | json_query('[].{groupid: @}') }}"
+          when:
+            - "pve_groups is iterable"
+            - "pve_groups is not mapping"
+            - "pve_groups | reject('mapping') | length > 0"
+
+        - name: Normalize PVE groups parameter into list of dicts from mapping
+          ansible.builtin.set_fact:
+            # transform from {<groupid>:{<setting>: <value>, …}} into [{'groupid':…, <setting>: <value>, …}]
+            pve_groups: "{{ pve_groups | dict2items | json_query('[].merge({groupid: key}, not_null(value, {groupid: key}))') }}"
+          when: "pve_groups is mapping"
+
+        - name: Normalize PVE groups parameter into empty list if none
+          ansible.builtin.set_fact:
+            pve_groups: "{{ [] }}"
+          when: "pve_groups is none"
+
+    - name: Validate PVE groups parameter
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Ensure that every entry has a groupid
+          ansible.builtin.assert:
+            that: "item.groupid | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have a groupid!"
+          loop: "{{ pve_groups }}"
+
+    - name: Prepare PVE groups management
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Query PVE groups
+          ansible.builtin.command: "pvesh get /access/groups --output-format json"
+          register: _pve_groups_raw
+          changed_when: false
+
+        - name: Normalize PVE groups query
+          ansible.builtin.set_fact:
+            _pve_groups: "{{ _pve_groups_raw.stdout | default('[]', true) | from_json }}"
+
+        # TODO prevent managing synced (realm) groups
+
+    - name: Remove non-declared PVE groups
+      when: "inventory_hostname == _init_node"
+      tags: groups_remove
+      block:
+        # TODO prevent deleting synced (realm) groups
+        - name: Remove PVE groups
+          ansible.builtin.command: "pvesh delete /access/groups/{{ item.groupid }}"
+          loop: "{{ _pve_groups | rejectattr('groupid', 'in', pve_groups | map(attribute='groupid')) }}"
+          changed_when: true
+
+    - name: Create missing PVE groups
+      when: "inventory_hostname == _init_node"
+      tags: groups_create
+      block:
+        - name: Create PVE groups
+          ansible.builtin.command:
+            "pvesh create /access/groups {{ item | dict2args(bool2int=true) }}"
+          loop: "{{ pve_groups | rejectattr('groupid', 'in', _pve_groups | map(attribute='groupid')) }}"
+          changed_when: true
+
+    - name: Modify existing PVE groups
+      when: "inventory_hostname == _init_node"
+      tags: groups_modify
+      block:
+        - name: Modify PVE groups
+          ansible.builtin.command:
+            "pvesh set /access/groups/{{ item.groupid }} --comment \"{{ item.comment | default('', true) }}\""
+          vars:
+            query_str: "[?groupid == '{{ item.groupid }}'].comment | [0]"
+          loop: "{{ pve_groups | selectattr('groupid', 'in', _pve_groups | map(attribute='groupid')) }}"
+          when: "item.comment | default('', true) != _pve_groups | json_query(query_str) | default('', true)"
+          changed_when: true

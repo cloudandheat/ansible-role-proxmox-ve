@@ -1,0 +1,103 @@
+---
+- name: Manage PVE realm sync jobs
+  tags: realm_sync_jobs
+  block:
+    - name: Normalize PVE realm sync jobs parameter
+      block:
+        - name: Normalize PVE realm sync jobs parameter into empty list if none
+          ansible.builtin.set_fact:
+            pve_realm_sync_jobs: "{{ [] }}"
+          when: "pve_realm_sync_jobs is none"
+
+    - name: Validate PVE realm sync jobs parameter
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Ensure that every entry has a realm name
+          ansible.builtin.assert:
+            that: "item.realm | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have a realm!"
+          loop: "{{ pve_realm_sync_jobs }}"
+
+        - name: Ensure that every entry has a schedule
+          ansible.builtin.assert:
+            that: "item.schedule | default(false, true) is not false"
+            msg: "Definition of '{{ item }}' must have a schedule!"
+          loop: "{{ pve_realm_sync_jobs }}"
+
+        - name: Ensure that every entry has a scope
+          ansible.builtin.assert:
+            that: "item.scope | default('', true) in ['both', 'users', 'groups']"
+            msg: "Definition of '{{ item }}' must have a scope(='both', 'users' or 'groups')!"
+          loop: "{{ pve_realm_sync_jobs }}"
+
+    - name: Prepare PVE realm sync jobs management
+      when: "inventory_hostname == _init_node"
+      vars:
+        enabled_def: true
+        enable_new_def: true
+        remove_vanished_def: 'none'
+      block:
+        - name: Initialize variables
+          ansible.builtin.set_fact:
+            _pve_realm_sync_jobs: "{{ [] }}"
+
+        - name: Normalize PVE realm sync jobs parameter for templating
+          ansible.builtin.set_fact:
+            _pve_realm_sync_jobs: "{{ _pve_realm_sync_jobs + [item | combine(upd_item)] }}"
+          vars:
+            upd_item: "{{ {'id': id_new, 'enabled': enabled, 'enable-new': enable_new, 'remove-vanished': rm_vanished} }}"
+            item_hash: "{{ item | to_json | hash() | lower }}"
+            id_def: "realmsync-{{ item_hash[:8] }}-{{ item_hash[-4:] }}"
+            id_new: "{{ item.id | default(id_def, true) }}"
+            enabled: "{{ item.enabled | default(enabled_def, true) }}"
+            enable_new: "{{ item['enable-new'] | default(enable_new_def, true) }}"
+            rm_vanished: "{{ item['remove-vanished'] | default(remove_vanished_def, true) }}"
+          loop: "{{ pve_realm_sync_jobs }}"
+
+    - name: Remove PVE realm sync jobs
+      when: "inventory_hostname == _init_node"
+      tags: realm_sync_jobs_remove
+      block:
+        - name: Remove PVE realm sync jobs
+          ansible.builtin.file:
+            path: "/etc/pve/jobs.cfg"
+            state: absent
+          when: "_pve_realm_sync_jobs | length == 0"
+
+    - name: Set PVE realm sync jobs
+      when: "inventory_hostname == _init_node"
+      tags:
+        - realm_sync_jobs_create
+        - realm_sync_jobs_modify
+      block:
+        # NOTICE: Ansible's template module cannot create files on /etc/pve because atomic renames aren't supported by pmxcfs.
+        - name: Ensure PVE realm sync jobs config file exists
+          ansible.builtin.file:
+            path: "/etc/pve/jobs.cfg"
+            state: touch
+            access_time: preserve
+            modification_time: preserve
+            owner: "root"
+            group: "www-data"
+            mode: "0640"
+
+        - name: Set PVE realm sync jobs
+          ansible.builtin.template:
+            src: "access/jobs.cfg.j2"
+            dest: "/etc/pve/jobs.cfg"
+            mode: "0640"
+            owner: "root"
+            group: "www-data"
+          when: "_pve_realm_sync_jobs | length > 0"
+
+        - name: Validate PVE realm sync jobs
+          block:
+            - name: Query PVE realm sync jobs info
+              ansible.builtin.command: "pvesh get /cluster/jobs/realm-sync --output-format json"
+              register: _pvesh_get_realm_syncs_raw
+              changed_when: false
+
+            - name: Check PVE realm sync jobs info
+              ansible.builtin.assert:
+                that: "_pvesh_get_realm_syncs_raw.stderr_lines | length == 0"
+                msg: "Error validating PVE realms: {{ _pvesh_get_realm_syncs_raw.stderr_lines }}"
