@@ -341,7 +341,7 @@
                 buckets_is_ref: "{{ (buckets_with_name_ref + buckets_with_id_ref) | unique }}"
                 buckets_is_ref_names: "{{ buckets_is_ref | map(attribute='name') }}"
                 buckets_not_ref: "{{ _tmp_buckets_unsorted | rejectattr('name', 'in', buckets_is_ref_names) }}"
-              loop: "{{ range(0, pve_ceph_crush_buckets | length) }}"
+              loop: "{{ range(0, pve_ceph_crush_buckets | length) | list }}"
               when: "_tmp_buckets_unsorted | default([]) | length > 0"
 
             - name: Fail when some buckets form a loop

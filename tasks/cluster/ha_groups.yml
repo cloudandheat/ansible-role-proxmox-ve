@@ -17,7 +17,6 @@
           when: 
             - "pve_cluster_ha_groups is none"
     
-
     - name: Prepare PVE HA groups management
       when: "inventory_hostname == _init_node"
       block:
@@ -28,7 +27,7 @@
 
         - name: Extract existing HA group data
           ansible.builtin.set_fact:
-            _ha_groups: "{{ _ha_groups_raw.stdout | default([],true) }}"
+            _ha_groups: "{{ _ha_groups_raw.stdout | from_json | default([],true) }}"
 
         - name: Determ HA group names for deletion, creation and modification
           ansible.builtin.set_fact:
@@ -36,8 +35,8 @@
             _ha_groups_create: "{{ _pve_ha_groups_names | difference( _ha_groups_names ) }}"
             _ha_groups_modify: "{{ _pve_ha_groups_names | intersect( _ha_groups_names ) }}"
           vars:
-            _ha_groups_names: "{{ _ha_groups | json_query('[*].group') }}"
-            _pve_ha_groups_names: "{{ _pve_ha_groups | json_query('[*].name') }}"
+            _ha_groups_names: "{{ _ha_groups | json_query('[*].group') | default([],true) }}"
+            _pve_ha_groups_names: "{{ _pve_ha_groups | json_query('[*].name')  }}"
 
     - name: Delete non-declared PVE HA groups
       tags: ha_groups_delete
@@ -85,3 +84,4 @@
             _nodes: "{{ item.nodes | default( groups[pve_group] , true ) | join(',') }}"
           loop: "{{ _pve_ha_groups  }}"
           when: "item.name in _ha_groups_create"
+

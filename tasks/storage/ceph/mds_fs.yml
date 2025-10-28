@@ -297,7 +297,8 @@
 
         - name: Collect and remove non-declared CephFS fs
           tags: ceph_fs_remove
-          when: "_undeclared_cephfs | length > 0"
+          when: 
+            - "_undeclared_cephfs | length > 0"
           block:
             - name: Disable PVE CephFS fs storage
               ansible.builtin.command: "pvesm set {{ item.name }} --disable"
