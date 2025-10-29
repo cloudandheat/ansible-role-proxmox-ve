@@ -325,7 +325,7 @@
               # NOTICE do not use "umount -l", because resource will never be freed
               ansible.builtin.command: "umount -f -t ceph /mnt/pve/{{ item[1].name }}"
               register: _storage_umount_raw
-              delegate_to: "{{ item[0] }}"
+              delegate_to: "{{ item[0] | default(omit) }}"
               # umount is needed twice sometimes
               loop: "{{ groups[pve_group] | product(_undeclared_cephfs)
                       + groups[pve_group] | product(_undeclared_cephfs) }}"
@@ -349,7 +349,7 @@
               ansible.builtin.file:
                 path: "/mnt/pve/{{ item[1].name }}"
                 state: absent
-              delegate_to: "{{ item[0] }}"
+              delegate_to: "{{ item[0] | default(omit) }}"
               loop: "{{ groups[pve_group] | product(_undeclared_cephfs) }}"
               timeout: 5
 
