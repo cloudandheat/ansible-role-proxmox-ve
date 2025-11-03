@@ -5,6 +5,9 @@
       "{{ pve_cluster_enabled | ternary(pve_cluster_initiator_host | default(groups[pve_group][0], true), inventory_hostname) }}"
   when: "_init_node | default(false, true) is false"
 
+- debug:
+    var: pve_storages
+
 - name: Manage PVE storage
   tags: storage_pve
   block:
@@ -159,7 +162,7 @@
           ansible.builtin.command:
             "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, reject_keys=reject_keys) }}"
           vars:
-            reject_keys: "{{ unsup_params_map[item.type] + ['storage'] }}"
+            reject_keys: "{{ unsup_params_map[item.type] + ['storage'] + ['datastore'] }}"
           loop: "{{ _pve_storages_mod }}"
           loop_control:
             label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
