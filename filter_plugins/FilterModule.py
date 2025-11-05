@@ -2,8 +2,8 @@ from typing import Any, Optional, Union
 
 DOCUMENTATION = r"""
 name: dict2args format output filter
-author: Marek Weber <marek.weber@cloudandheat.com>
-version_added: "1.0.0"
+author: Marek Weber <marek.weber@cloudandheat.com>, Lucas Trilken <lucas.trilken@cloudandheat.com>
+version_added: "1.0.1"
 short_description: Dictionary to cli arguments/options formatting output filter.
 description:
 - Takes single dicts and converts keys and values into arguments and options.
@@ -209,6 +209,7 @@ class FilterModule(object):
     def format_value(value: Any, bool2int: bool, str2num: bool, quote_values: bool, quotes: str, list_sep: str) -> str:
         if str2num and isinstance(value, str):
             value = FilterModule.num_or_str(value)
+
         if isinstance(value, list):
             if len(value) == 0:
                 value = ""
@@ -222,15 +223,23 @@ class FilterModule(object):
                     value.items()))
         elif isinstance(value, bool):
             value = str(int(value)) if bool2int else str(value).lower()
-        elif isinstance(value, str) and not (value.startswith(quotes) and value.endswith(quotes)):
-            quote_values = True
+        elif isinstance(value, str) and (value.startswith('{')):
+            value="'" + value 
+        elif isinstance(value, str) and (value.endswith('}')):
+            value= value + "'" 
         elif value is None:
             return ""
 
+        # handling of json here
         value = str(value)
 
         if quote_values and not (str(value).startswith(quotes) and str(value).endswith(quotes)):
             value = quotes + str(value) + quotes #if len(value) > 0 else ""
+
+        if isinstance(value, str) and (value.startswith('{')):
+            value="'" + value 
+        if isinstance(value, str) and (value.endswith('}')):
+            value= value + "'" 
 
         return value
 
