@@ -76,7 +76,9 @@
           loop_control:
             label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
           # NOTICE: For clean log output, removing 'local' storage has effect but is recreated automatically.
-          when: "item.storage != 'local'"
+          when: 
+            - "item.storage != 'local'"
+            - "item.storage != 'local-btrfs'"
           changed_when: true
 
         - name: Remove PVE storages with different type
