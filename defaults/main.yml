@@ -401,8 +401,6 @@ pve_datacenter_options: {}
 # pve_datacenter_cfg -> dict: (Legacy) key-values for PVE datacenter options (datacenter.cfg).
 pve_datacenter_cfg: "{{ pve_datacenter_options }}"
 
-
-
 ### PVE Storage definitions
 # pve_storages -> dict={
 # 'storage' -> str: Storage ID.
@@ -489,6 +487,14 @@ pve_datacenter_cfg: "{{ pve_datacenter_options }}"
 #                                   NOTICE: Storage definitions are mappings between real/physical storage and PVE itself,
 #                                   telling PVE how to access the physical storage. Storage declared here is never created or initialized!
 pve_storages: []
+
+### PVE PBS encryption key preversation
+# pve_pbs_encryption_keys_preserve -> dict={
+# 'enabled' -> bool: save keys of the pbs storage connection.
+# 'host' -> str: host where the file should be saved.
+# 'file' -> str: file path used to save the encryption keys
+
+pve_pbs_encryption_keys_preserve: null
 
 ### CEPH & CEPH CLUSTER
 # pve_ceph_enabled -> bool: (Irreversible) If ceph should be installed and configured for PVE. Mutually exclusive with pve_ceph_enhanced_enabled. EXPERIMENTAL

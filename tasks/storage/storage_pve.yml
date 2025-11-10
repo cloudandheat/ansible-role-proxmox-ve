@@ -93,19 +93,21 @@
       tags: storage_pve_create
       block:
         - name: Recreate PVE storages with changed type
-          ansible.builtin.command: "pvesh create /storage {{ item | dict2args(bool2int=true) }}"
+          ansible.builtin.command: "pvesh create /storage {{ item | dict2args(bool2int=true) }} --output-format json"
           loop: "{{ _pve_storages_chg_type }}"
           loop_control:
             label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
+          register: _pve_storage_recreate_return 
           changed_when: true
 
         - name: Create missing PVE storage definitions
-          ansible.builtin.command: "pvesh create /storage {{ item | dict2args(bool2int=true, quotes='') }}"
+          ansible.builtin.command: "pvesh create /storage {{ item | dict2args(bool2int=true, quotes='') }} --output-format json"
           loop: "{{ pve_storages | rejectattr('storage', 'in', _pve_storages | map(attribute='storage')) }}"
           loop_control:
             label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
           # NOTICE: StorageID 'local' is normally already defined, cannot be created.
           when: "item.storage != 'local'"
+          register: _pve_storage_create_return 
           changed_when: true
 
     - name: Modify existing PVE storage definitions
@@ -139,6 +141,7 @@
                                 | selectattr('storage', 'in', _pve_storages | map(attribute='storage'))
                                 | rejectattr('storage', 'in', _pve_storages_chg_type | map(attribute='storage')) }}"
 
+
         - name: Collect PVE storage definition parameters to delete
           ansible.builtin.set_fact:
             _pve_storages_attr_rem: "{{ _pve_storages_attr_rem | default([]) + [{'storage': item.storage, 'delete': attr_rem}] }}"
@@ -161,8 +164,40 @@
           ansible.builtin.command:
             "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quote_values=false, quotes='', reject_keys=reject_keys) }}"
           vars:
-            reject_keys: "{{ unsup_params_map[item.type] + ['storage'] + ['datastore'] }}"
+            reject_keys: "{{ unsup_params_map[item.type] + ['storage'] + ['datastore'] + ['encryption-key'] }}"
           loop: "{{ _pve_storages_mod }}"
           loop_control:
             label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
           changed_when: true
+        
+        - name: Handling the encryption keys for pbs storages, due to allowed special (and useful) value of 'autogen'
+          block:
+            - name: Applying attribute 'encryption-key' if not 'autogen'
+              ansible.builtin.command:
+                "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quote_values=false, quotes='', select_keys=['encryption-key']) }} --output-format json"
+              loop: "{{ _pve_storages_mod }}"
+              loop_control:
+                label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
+              changed_when: true
+              register: _pve_pbs_encryption_modify_return 
+              when: item['encryption-key'] != 'autogen' 
+    
+            - name: Persists the created and changed storage configuration to persist the created/set encryption keys
+              ansible.builtin.lineinfile:
+                create: true
+                path: "{{ pve_pbs_encryption_keys_preserve.file | default(playbook_dir + '/pbs.keys') }}"
+                insertafter: "EOF"
+                line: |
+                  ## Date: {{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}
+                  ## Host: {{ ansible_fqdn }}
+                  ## Recreated Storages
+                  {{ _pve_storage_recreate_return.results }}
+                  ## Created Storages
+                  {{ _pve_storage_create_return.results }}
+                  ## Modified PBS Storages
+                  {{ _pve_pbs_encryption_modify_return.results  }} 
+              delegate_to: "{{ pve_pbs_encryption_keys_preserve.host | default('localhost') }}"
+              become: false
+              when:
+                - "pve_pbs_encryption_keys_preserve.enabled | default(false) | bool"
+                - "inventory_hostname == _init_node"
