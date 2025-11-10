@@ -54,7 +54,9 @@
         # NOTICE: Don't manage synced (=realm) users.
         - name: Filter PVE users query
           ansible.builtin.set_fact:
-            _pve_users: "{{ _pve_users | selectattr('realm-type', 'in',['pve','pam']) }}"
+            _pve_users: "{{ _pve_users | json_query(jquery) }}"
+          vars:
+            jquery: '[?"realm-type"==`pve` || "realm-type"==`pam` || !contains(keys(@),`realm-type`) ]'
 
     - name: Remove non-declared PVE users
       when: "inventory_hostname == _init_node"
