@@ -4,9 +4,15 @@
 - name: Manage PVE datacenter options
   when: "inventory_hostname == _init_node"
   block:
+    - name: Touch the datacenter.cfg files if they haven't exists in advanced (due to behaviour of pmxcfs)
+      ansible.builtin.file:
+        path: "/etc/pve/datacenter.cfg"
+        state: touch
+      when: "pve_datacenter_options | length > 0"
+
     - name: Set datacenter options file for custom datacenter options
       ansible.builtin.template:
-        src: "templates/main/datacenter.cfg.j2"
+        src: "templates/cluster/datacenter.cfg.j2"
         dest: "/etc/pve/datacenter.cfg"
         owner: "root"
         group: "www-data"
