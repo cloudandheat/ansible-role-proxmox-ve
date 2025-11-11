@@ -180,7 +180,9 @@
                 label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
               changed_when: true
               register: _pve_pbs_encryption_modify_return 
-              when: item['encryption-key'] != 'autogen' 
+              when: 
+                - item['encryption-key'] is defined and item['encryption-key'] != 'autogen' 
+
     
             - name: Persists the created and changed storage configuration to persist the created/set encryption keys
               ansible.builtin.lineinfile:
