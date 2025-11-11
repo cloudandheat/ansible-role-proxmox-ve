@@ -67,6 +67,7 @@
       - gpg # needed for trusting keys in apt
       - python3-apt # required by Ansible
       - openssl # needed by ssl_config tasks
+      - openvswitch-switch # needed for ovs-configuration
     state: present
     update_cache: true
 
