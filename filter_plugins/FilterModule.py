@@ -227,10 +227,11 @@ class FilterModule(object):
             value="'" + value 
         elif isinstance(value, str) and (value.endswith('}')):
             value= value + "'" 
+        elif isinstance(value, str) and not (value.startswith(quotes) and value.endswith(quotes)):
+            quote_values = True
         elif value is None:
             return ""
 
-        # handling of json here
         value = str(value)
 
         if quote_values and not (str(value).startswith(quotes) and str(value).endswith(quotes)):
