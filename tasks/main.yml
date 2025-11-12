@@ -77,6 +77,12 @@
   tags:
     - ha_groups
 
+- name: Manage PVE cluster HA guests
+  ansible.builtin.import_tasks: cluster/ha_manager.yml
+  when: "pve_cluster_enabled | bool"
+  tags:
+    - ha_manager
+
 - name: Configuration of PVE storage pools
   tags: storage
   block:

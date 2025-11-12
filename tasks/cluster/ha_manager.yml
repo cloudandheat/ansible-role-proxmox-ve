@@ -1,0 +1,37 @@
+---
+- name: PVE HA start Ressource Managers
+  when: "inventory_hostname == _init_node and pve_cluster_ha_manager_init == true"
+  tags: ha_managers
+  block:
+    - name: Check if the tracking file manager_status is already existing
+      ansible.builtin.stat:
+        path: "/etc/pve/ha/manager_status"
+      register: _pve_cluster_ha_manager
+
+    - name: Start the CRM + LRM Process in a non breaking way
+      when: "not _pve_cluster_ha_manager.stat.exists"
+      block:
+
+        - name: Create a dummy container file
+          ansible.builtin.file:
+            path: "/etc/pve/nodes/{{ ansible_hostname }}/lxc/13.conf"
+            state: touch
+        
+        - name: Add ct:13 to HA
+          ansible.builtin.command: 
+            cmd: "pvesh create cluster/ha/resources --sid ct:13 --type ct"
+
+        - name: Wait until CRM + LRM roles are negotiated
+          ansible.builtin.wait_for: 
+            path: "/etc/pve/ha/manager_status"
+            state: present
+            timeout: 20
+
+        - name: Remove ct:13 from HA
+          ansible.builtin.command: 
+            cmd: "pvesh delete cluster/ha/resources/ct:13"
+
+        - name: Remove a dummy container file
+          ansible.builtin.file:
+            path: "/etc/pve/nodes/{{ ansible_hostname }}/lxc/13.conf"
+            state: absent
