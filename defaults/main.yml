@@ -355,7 +355,7 @@ pve_cluster_addr1_priority: 50
 # }]: (Declarative) List of HA groups to be created defined as dict,
 # consisting of 'name' key and key-values used as arguments for ha-manager command.
 pve_cluster_ha_groups: null
-# pve_cluster_ha_inialize -> bool: Defines if the role takes care to start to start ha-manager crm + lrm
+# pve_cluster_ha_init -> bool: Defines if the role takes care to start to start ha-manager crm + lrm
 pve_cluster_ha_manager_init: true
 # pve_datacenter_options -> dict={
 #  'bwlimit' -> str='[clone=<LIMIT>][,default=<LIMIT>][,migration=<LIMIT>][,move=<LIMIT>][,restore=<LIMIT>]':
