@@ -125,6 +125,11 @@
       tags:
         - storage_pve
 
+- name: Configure Backup Schedules
+  ansible.builtin.import_tasks: backup/jobs.yml
+  tags:
+    - backup_jobs
+
 - name: Configure Identity and Access
   ansible.builtin.import_tasks: access/access.yml
   tags:

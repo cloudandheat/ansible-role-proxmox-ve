@@ -175,6 +175,7 @@
             - name: Applying attribute 'encryption-key' if not 'autogen'
               ansible.builtin.command:
                 "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quote_values=false, quotes='', select_keys=['encryption-key']) }} --output-format json"
+#                "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quotes='\"', select_keys=['encryption-key']) }} --output-format json"
               loop: "{{ _pve_storages_mod }}"
               loop_control:
                 label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"

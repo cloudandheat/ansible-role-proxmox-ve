@@ -1,0 +1,100 @@
+---
+- name: Manage PVE Backup Jobs
+  tags: pve_backup_jobs
+  block:
+    - name: Normalize PVE job definitions
+      block:
+        - name: Normalize PVE backup job parameter into list of dicts from mapping
+          ansible.builtin.set_fact:
+            # transform from {<storage>:{<setting>: <value>, …}} into [{'storage':…, <setting>: <value>, …}]
+            _pve_backup_jobs_def: "{{ pve_backup_jobs | dict2items | json_query('[].merge({id: key}, not_null(value, {id: key}))') }}"
+          when: "pve_backup_jobs is mapping"
+
+        - name: Normalize PVE backup job parameter into list if given as list
+          ansible.builtin.set_fact:
+            _pve_backup_jobs_def: "{{ pve_backup_jobs }}"
+          when: "pve_backup_jobs is iterable"
+
+        - name: Normalize PVE backup job parameter into empty list if none
+          ansible.builtin.set_fact:
+            _pve_backup_jobs_def: "{{ [] }}"
+          when: "pve_backup_jobs is none"
+
+    - name: Validate PVE backup definitions parameter
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Ensure that every entry has a schedule
+          ansible.builtin.assert:
+            that: "( item.schedule is defined) or ( item.starttime is defined ) "
+            msg: "Definition of '{{ item }}' must have a schedule or starttime!"
+          loop: "{{ _pve_backup_jobs_def }}"
+
+        - name: Ensure that every entry has a id
+          ansible.builtin.assert:
+            that: "item.id is defined"
+            msg: "Definition of '{{ item }}' must have a id"
+          loop: "{{ _pve_backup_jobs_def }}"
+
+        - name: Ensure that every entry has a scope (vmid or scope)
+          ansible.builtin.assert:
+            that: "( item.vmid is defined) or ( item.all is defined )"
+            msg: "Definition of '{{ item }}' must have a mode"
+          loop: "{{ _pve_backup_jobs_def }}"
+
+    - name: Prepare PVE backup jobs definitions management
+      when: "inventory_hostname == _init_node"
+      block:
+        - name: Query PVE backup jobs
+          ansible.builtin.command: "pvesh get /cluster/backup --output-format json"
+          register: _pve_backup_jobs_raw
+          changed_when: false
+
+        - name: Normalize PVE backup job query
+          ansible.builtin.set_fact:
+            _pve_backup_jobs: "{{ _pve_backup_jobs_raw.stdout | default('[]', true) | from_json }}"
+
+    - name: Remove PVE backup jobs not defined
+      when: "inventory_hostname == _init_node"
+      tags: pve_backup_jobs_remove
+      block:
+        - name: Remove non-declared PVE backup jobs
+          ansible.builtin.command: "pvesh delete /cluster/backup/{{ item.id }}"
+          loop: "{{ _pve_backup_jobs | rejectattr('id', 'in', _pve_backup_jobs_def | map(attribute='id')) }}"
+          register: _pve_backup_jobs_deleted_undefined 
+          changed_when: true
+
+    - name: Delete Backup jobs with deviating configuration
+      when: "inventory_hostname == _init_node"
+      tags: pve_backup_jobs_remove
+      block:
+        - name: Collect PVE backup jobs definitions to check for modifications
+          ansible.builtin.set_fact:
+            _pve_backup_jobs_modify: "{{ _pve_backup_jobs_def | selectattr('id', 'in', _pve_backup_jobs | map(attribute='id')) }}" 
+
+        - name: Clean _pve_backup_jobs from 'next-run' and further attributes, to prepare comparison
+          ansible.builtin.set_fact:
+            _pve_backup_jobs_rmattr: "{{  _pve_backup_jobs |  ansible.utils.remove_keys(target=['next-run','type']) }}"
+
+        - name: Check the backup job have a equal configuration
+          ansible.builtin.set_fact:
+            _pve_backup_jobs_modify_del: "{{ _pve_backup_jobs_modify_del | default([]) + [ item[0] ] }}"
+          vars: 
+            _sorted_modify_job: "{{ item[0] | sort }}"
+            _sorted_clean_job: "{{ item[1] | sort }}"
+          when: _sorted_modify_job != _sorted_clean_job
+          loop: "{{ _pve_backup_jobs_modify | product( _pve_backup_jobs_rmattr | default([]) ) | list }}"
+
+        - name: Delete deviating backup jobs
+          ansible.builtin.command:
+            "pvesh delete /cluster/backup/{{ item['id'] }}"
+          loop: "{{ _pve_backup_jobs_modify_del | default([]) }}"
+
+    - name: Create PVE backup job definitions
+      when: "inventory_hostname == _init_node"
+      tags: pve_backup_jobs_create
+      block:
+        - name: Create missing PVE backup jobs definitions
+          ansible.builtin.command: "pvesh create /cluster/backup {{ item | dict2args(bool2int=true) }} --output-format json"
+          loop: "{{ _pve_backup_jobs_def | rejectattr('id', 'in', _pve_backup_jobs | map(attribute='id')) +  _pve_backup_jobs_modify_del | default([]) }}"
+          register: _pve_backup_jobs_create_return 
+          changed_when: true

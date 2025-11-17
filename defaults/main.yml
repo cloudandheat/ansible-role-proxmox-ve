@@ -672,7 +672,6 @@ pve_rbd_mirror_remove: true
 # pve_remove_secondary_images -> bool: (Irreversible) If secondary images in non-declared pools should get removed.
 pve_remove_secondary_images: false
 
-
 ### CephFS
 # pve_ceph_fs -> list[dict={
 #  'name' -> str=regex(^[^:/\s]+$): (Required) The (UNIQUE!) ceph filesystem name. (No ':', '/', whitespace in name.)
@@ -782,3 +781,17 @@ pve_zfs_create_volumes: []
 #  'uuid' -> str: Set filesystem’s UUID to the given value. Mutually exclusive with 'resizefs'.
 # } | list[dict={'dev': <dev>, …}]: (Irreversible) Additional filesystem to be created on each host locally.
 pve_filesystems: []
+
+
+#pve_backup_jobs: 
+#--all                        --fleecing                   --noheader                   --pool                       --stop
+#--bwlimit                    --human-readable             --noproxy                    --protected                  --stopwait
+#--comment                    --ionice                     --notes-template             --prune-backups              --storage
+#--compress                   --lockwait                   --notification-mode          --quiet                      --tmpdir
+#--delete                     --mailnotification           --notification-policy        --remove                     --vmid
+#--dow                        --mailto                     --notification-target        --repeat-missed              --zstd
+#--dumpdir                    --maxfiles                   --output-format              --schedule                   
+#--enabled                    --mode                       --pbs-change-detection-mode  --script                     
+#--exclude                    --noborder                   --performance                --starttime                  
+#--exclude-path               --node                       --pigz                       --stdexcludes                
+
