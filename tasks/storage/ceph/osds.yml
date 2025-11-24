@@ -221,10 +221,11 @@
         state: present
         mode: "0600"
       delegate_to: "{{ pve_osd_luks_key_preserve.host | default(omit) }}"
-      loop: "{{ _ceph_config_keys_luks }}"
+      loop: "{{ _ceph_config_keys_luks | default([]) }}"
       loop_control:
         label: "{{ item.luks_volume }}"
       when: "_ceph_config_keys_luks is defined"
+      become: false
 
 - name: Remove OSDs
   block:
