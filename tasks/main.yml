@@ -125,11 +125,6 @@
       tags:
         - storage_pve
 
-- name: Configure Backup Schedules
-  ansible.builtin.import_tasks: backup/jobs.yml
-  tags:
-    - backup_jobs
-
 - name: Configure Identity and Access
   ansible.builtin.import_tasks: access/access.yml
   tags:
@@ -141,6 +136,12 @@
   tags:
     - datacenter_cfg
     - datacenter_options
+
+- name: Configure Backup Schedules
+  ansible.builtin.import_tasks: cluster/backup_jobs.yml
+  tags:
+    - backup_jobs
+
 
 - name: Configure metric export to monitoring server
   ansible.builtin.import_tasks: cluster/metric_server.yml

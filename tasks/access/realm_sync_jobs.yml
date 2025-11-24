@@ -54,6 +54,7 @@
             rm_vanished: "{{ item['remove-vanished'] | default(remove_vanished_def, true) }}"
           loop: "{{ pve_realm_sync_jobs }}"
 
+    ### This part needs to be adopted for harmonization with backup jobs
     - name: Remove PVE realm sync jobs
       when: "inventory_hostname == _init_node"
       tags: realm_sync_jobs_remove
