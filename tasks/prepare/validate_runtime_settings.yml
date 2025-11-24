@@ -16,9 +16,16 @@
             _pve_found_clusters: "{{ [] }}"
             _pve_cluster_nodes: "{{ [] }}"
 
+        - name: Check if pvesh is available, to skip cluster status test on plain Debian 
+          ansible.builtin.stat:
+            path: "/usr/bin/pvesh"
+          register: _pve_pvesh_available
+          changed_when: false
+
         - name: Lookup cluster status
           ansible.builtin.command: "pvesh get /cluster/status --output-format json"
           register: _pve_cluster_status_raw
+          when: _pve_pvesh_available.stat.exists
           changed_when: false
 
         - name: Extract cluster status

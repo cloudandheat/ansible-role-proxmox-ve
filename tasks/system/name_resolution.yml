@@ -53,22 +53,24 @@
       loop_control:
         label: "{{ item.inventory_hostname }}, {{ item.ansible_hostname }}, {{ item.ansible_fqdn }}"
 
-    # NOTICE: This task must be executed after hostnames are renamed and facts regathered.
-    - name: Create dicts for all host(-var)s resolution
-      ansible.builtin.set_fact:
-        ansible_hostnames: "{{ ansible_hostnames | default([]) + [item.ansible_hostname] }}"
-        ansible_fqdns: "{{ ansible_fqdns | default([]) + [item.ansible_fqdn] }}"
-        # Create maps from short/fqdn/short_inv hostnames to their inventory_hostname
-        # NOTE: Jinja always evaluates all arguments in an expression, so cases like:
-        # "{{ hostvars[<inv_hostname>] | default(hostvars[_fqdn2invname[<inv_hostname>]]) }}"
-        # cause 'dict object' has no attribute '<inv_hostname>' error, if <inv_hostname> is not a key.
-        _all_fqdn2invname: "{{ _all_fqdn2invname | default({}) | combine({item.ansible_fqdn: item.inventory_hostname,
-                                                                 item.inventory_hostname: item.inventory_hostname}) }}"
-        _all_shrt2invname: "{{ _all_shrt2invname | default({}) | combine({item.ansible_hostname: item.inventory_hostname,
-                                                                 item.inventory_hostname: item.inventory_hostname}) }}"
-        _all_shrtinv2invname: "{{ _all_shrtinv2invname | default({}) | combine({item.inventory_hostname_short: item.inventory_hostname,
-                                                                 item.inventory_hostname: item.inventory_hostname}) }}"
-      loop: "{{ groups['pve_group'] | map('extract', hostvars) }}"
-      loop_control:
-        label: "{{ item.inventory_hostname }}, {{ item.ansible_hostname }}, {{ item.ansible_fqdn }}"
-      when: false # Enable if cross-groups resolution is needed
+########### Check if required for rbd mirroring
+#
+#    # NOTICE: This task must be executed after hostnames are renamed and facts regathered.
+#    - name: Create dicts for all host(-var)s resolution
+#      ansible.builtin.set_fact:
+#        ansible_hostnames: "{{ ansible_hostnames | default([]) + [item.ansible_hostname] }}"
+#        ansible_fqdns: "{{ ansible_fqdns | default([]) + [item.ansible_fqdn] }}"
+#        # Create maps from short/fqdn/short_inv hostnames to their inventory_hostname
+#        # NOTE: Jinja always evaluates all arguments in an expression, so cases like:
+#        # "{{ hostvars[<inv_hostname>] | default(hostvars[_fqdn2invname[<inv_hostname>]]) }}"
+#        # cause 'dict object' has no attribute '<inv_hostname>' error, if <inv_hostname> is not a key.
+#        _all_fqdn2invname: "{{ _all_fqdn2invname | default({}) | combine({item.ansible_fqdn: item.inventory_hostname,
+#                                                                 item.inventory_hostname: item.inventory_hostname}) }}"
+#        _all_shrt2invname: "{{ _all_shrt2invname | default({}) | combine({item.ansible_hostname: item.inventory_hostname,
+#                                                                 item.inventory_hostname: item.inventory_hostname}) }}"
+#        _all_shrtinv2invname: "{{ _all_shrtinv2invname | default({}) | combine({item.inventory_hostname_short: item.inventory_hostname,
+#                                                                 item.inventory_hostname: item.inventory_hostname}) }}"
+#      loop: "{{ groups['pve_group'] | map('extract', hostvars) }}"
+#      loop_control:
+#        label: "{{ item.inventory_hostname }}, {{ item.ansible_hostname }}, {{ item.ansible_fqdn }}"
+#      when: false # Enable if cross-groups resolution is needed
