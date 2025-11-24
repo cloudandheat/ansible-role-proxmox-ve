@@ -21,11 +21,15 @@
           ansible.builtin.command: 
             cmd: "pvesh create cluster/ha/resources --sid ct:13 --type ct"
 
-        - name: Wait until CRM + LRM roles are negotiated
-          ansible.builtin.wait_for: 
-            path: "/etc/pve/ha/manager_status"
-            state: present
-            timeout: 20
+        - name: Wait until CRM + LRM roles are elected
+          ansible.builtin.command: 
+            cmd: "pvesh get /cluster/ha/status/manager_status -o json"
+          register: _pve_ha_manager_status_elect
+          until: "( _pve_ha_manager_status_elect.stdout | from_json | json_query(jquery) ) is not none"
+          vars:
+            jquery: "manager_status.master_node"
+          retries: 5
+          delay: 5
 
         - name: Remove ct:13 from HA
           ansible.builtin.command: 
