@@ -73,13 +73,24 @@
 
 - name: Manage SSH configuration
   block:
-    - name: Ensure SSH config includes drop-in config
+    - name: Ensure SSH config includes drop-in config for strict inlude rules
+      ansible.builtin.lineinfile:
+        dest: "/etc/ssh/ssh_config"
+        search_string: 'Include /etc/ssh/ssh_config.d/ssh_pve.conf'
+        line: 'Include /etc/ssh/ssh_config.d/ssh_pve.conf'
+        state: present
+        mode: "0644"
+      when: pve_ssh_strict_include is true
+      register: _ssh_config_raw
+
+    - name: Ensure SSH config includes drop-in config for permissive include rules
       ansible.builtin.lineinfile:
         dest: "/etc/ssh/ssh_config"
         search_string: 'Include /etc/ssh/ssh_config.d/*.conf'
         line: 'Include /etc/ssh/ssh_config.d/*.conf'
         state: present
         mode: "0644"
+      when: pve_ssh_strict_include is false
       register: _ssh_config_raw
 
     - name: Configure SSH clients for connecting to PVE cluster hosts
@@ -89,13 +100,24 @@
         mode: "0644"
       register: _ssh_pve_config_raw
 
-    - name: Ensure SSH Daemon includes drop-in config
+    - name: Ensure SSH Daemon includes drop-in config for strict inlude rules
       ansible.builtin.lineinfile:
         dest: "/etc/ssh/sshd_config"
-        search_string: 'Include /etc/ssh/sshd_config.d/*.conf'
+        search_string: 'Include /etc/ssh/sshd_config.d/sshd_pve.conf'
+        line: 'Include /etc/ssh/sshd_config.d/sshd_pve.conf'
+        state: present
+        mode: "0644"
+      when: pve_sshd_strict_include is true
+      register: _sshd_config_raw
+
+    - name: Ensure SSH Daemon includes drop-in config for permissive include rules
+      ansible.builtin.lineinfile:
+        dest: "/etc/ssh/sshd_config"
+        search_string: 'Include /etc/ssh/sshd_config.d/.conf'
         line: 'Include /etc/ssh/sshd_config.d/*.conf'
         state: present
         mode: "0644"
+      when: pve_sshd_strict_include is false
       register: _sshd_config_raw
 
     - name: Allow root logins from PVE cluster hosts
