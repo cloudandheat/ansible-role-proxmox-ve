@@ -84,11 +84,13 @@
         pve_ceph_cluster_network:
           "{{ ceph_cluster_ip | default(pve_ceph_cluster_network) | default('', true) | ansible.utils.ipaddr('host/prefix') }}"
 
-    - name: Ensure pve_ceph_cluster_network is a valid ip address if defined
+    ## ansible.utils.ip_addess is only available in version < ansible-core 2.19  
+    - name: Ensure pve_ceph_cluster_network is a valid ip address if defined 
       ansible.builtin.assert:
         that: "pve_ceph_cluster_network is false or pve_ceph_cluster_network is none or (pve_ceph_cluster_network | default('', true) is ansible.utils.ip_address )"
         msg: "The specified Ceph cluster network ip address (pve_ceph_cluster_network={{ pve_ceph_cluster_network }})
               of host {{ inventory_hostname }} is defined but not a valid IP address in CIDR notation!"
+      when: (ansible_version.major >= 2) and (ansible_version.minor >= 19)
 
     - name: Ensure pve_ceph_cluster_network network size is big enough
       ansible.builtin.assert:
