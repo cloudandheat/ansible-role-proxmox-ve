@@ -125,7 +125,9 @@
         host_osds: "{{ _ceph_osd_tree_from_raw.stdout | from_json | json_query(query_osds) | length }}"
         existing_osds: "{{ _ceph_device_osd_id | dict2items | map(attribute='value') | select('!=', none) | unique | length }}"
         created_osds: "{{ _pveceph_osd_create_raws.results | selectattr('changed', '==', true) | selectattr('rc', '==', 0) | length }}"
-      until: "(host_osds | int - existing_osds | int) >= (created_osds | int)"
+      until:
+        - "_ceph_osd_tree_from_raw.rc == 0"
+        - "(host_osds | int - existing_osds | int) >= (created_osds | int)"
       when: "_pveceph_osd_create_raws.changed"
       changed_when: false
       retries: 5
