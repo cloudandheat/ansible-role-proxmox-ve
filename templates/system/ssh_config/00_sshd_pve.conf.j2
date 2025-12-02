@@ -10,5 +10,8 @@ Match Address {{ hostvars[host].pve_cluster_ssh_addrs | join(",") }}
      AllowGroups root 
      PermitRootLogin prohibit-password
      PermitTTY {{ "Yes" if pve_ssh_permit_tty is true else "No" }}
+     # Disabling general DisableForwarding to avoid overruling AllowTcpForwarding directive for secure online migration
+     DisableForwarding no
+     AllowTcpForwarding yes
 
 {% endfor %}
