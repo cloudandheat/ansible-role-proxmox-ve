@@ -81,8 +81,8 @@ pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-reef {{ p
 pve_extra_uninstall_packages: []
 # pve_extra_packages -> list[str]: (Irreversible) Names of additional apt packages to install on each host.
 pve_extra_packages: []
-# pve_run_system_upgrades -> bool: (Declarative) Do 'unsafe' apt dist upgrades.
-pve_run_system_upgrades: false
+# pve_run_system_upgrades -> bool: (Declarative) Do 'unsafe' apt dist upgrades. (Recommended for PVE environments)
+pve_run_system_upgrades: true
 # pve_run_proxmox_upgrades -> bool: (Declarative) If Proxmox and related packages should be updated.
 pve_run_proxmox_upgrades: true
 
@@ -91,7 +91,7 @@ pve_run_proxmox_upgrades: true
 # pve_check_for_kernel_update -> bool: (Declarative) Test if a kernel update is pending.
 pve_check_for_kernel_update: true
 # pve_reboot_on_kernel_update -> bool: (Declarative) If host should be rebooted on pending kernel update / if kernel update should get installed.
-pve_reboot_on_kernel_update: false
+pve_reboot_on_kernel_update: true
 # pve_reboot_on_kernel_update_delay -> int: (Declarative) How long to wait before reboot.
 pve_reboot_on_kernel_update_delay: 60
 # pve_reboot_throttle -> int: (Declarative) number of hosts to boot in parallel
