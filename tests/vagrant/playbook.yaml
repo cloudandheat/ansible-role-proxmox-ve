@@ -1,0 +1,19 @@
+---
+- hosts:
+    - pve-test
+  remote_user: vagrant
+  become: yes
+  any_errors_fatal: true
+  tasks:
+
+    - ansible.builtin.import_role:
+        name: chrony
+      tags:
+        - chrony
+        - never
+
+    - ansible.builtin.import_role:
+        name: proxmox-ve
+      tags:
+        - pve
+

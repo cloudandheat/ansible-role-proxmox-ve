@@ -20,3 +20,5 @@ old/
 ceph.secret                               
 osd-luks.keys                               
 .env*
+pbs.keys
+.ansible
