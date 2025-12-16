@@ -38,7 +38,10 @@ Vagrant.configure("2") do |config|
                            auto_config: true
       end
 
+      # Additional sleeps to ensure, that the private networks already exist
+      # It is not a perfect solution, because there is still the small chance of a race-condition
       machine.vm.provision "shell", inline: "echo waiting for network; sleep 10"
+
       # Only run provision on the last machine
       if machine_id == N
         machine.vm.provision "shell", inline: "echo waiting for network; sleep 10"

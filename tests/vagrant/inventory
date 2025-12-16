@@ -29,9 +29,27 @@ pve-test:
 
 all:
   vars:
+    # Debian 12 (bookworm) setup
+    # ---------------
+    # pve_debian_version: "bookworm"
+    # pve_repository_line: "deb http://download.proxmox.com/debian/pve {{ pve_debian_version }} pve-no-subscription"
+    # pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-reef {{ pve_debian_version }} no-subscription"
+
+
+    # Debian 13 (trixie) setup
+    # ---------------
+    pve_debian_version: "trixie"
+    # Debian 13 uses deb822 repositories for proxmox-ve
+    pve_repository:
+      uris: http://download.proxmox.com/debian/pve
+      suites: "{{ pve_debian_version }}"
+      components: pve-no-subscription
+    # change from ceph-reef to ceph-squid for Debian 13
+    pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-squid {{ pve_debian_version }} no-subscription"
+
+
     nameServer: 
       - "9.9.9.9"
-    clusterDomain: "cloudandheat.com"
     ntp_serverconf:
       - "10.10.10.1 iburst minpoll 5"
       - "10.10.6.2 iburst minpoll 5"
@@ -40,14 +58,9 @@ all:
     pve_datacenter_options:
       ha: "shutdown_policy=migrate"
 
-    # pve_debian_version: "bookworm"
-    # pve_repository_line: "deb http://download.proxmox.com/debian/pve {{ pve_debian_version }} pve-no-subscription"
-    # pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-reef {{ pve_debian_version }} no-subscription"
-
-    pve_debian_version: "trixie"
-    pve_repository_line: "deb http://download.proxmox.com/debian/pve {{ pve_debian_version }} pve-no-subscription"
-    # change from ceph-reef to ceph-squid for debian 13
-    pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-squid {{ pve_debian_version }} no-subscription"
+    # WORKAROUNDS
+    pve_vagrant_test_setup: true
+    pve_remove_subscription_warning: false
 
     pve_group: 
       - pve-test
@@ -66,8 +79,6 @@ all:
       - hosts: [ "pve1-1", "pve1-2", "pve1-3" ]
         device: "/dev/vdd"
         encrypted: true
-
-    pve_remove_subscription_warning: false
 
     pve_pveproxy_defaults:
       listen_ip: "0.0.0.0"
