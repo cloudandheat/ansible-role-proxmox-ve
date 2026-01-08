@@ -12,7 +12,7 @@
 
 ### legacy Ansible compatible part based on former coding of variable for certain settings
 
-{% if dhparam_file is defined %}
+{% if dhparam_file is defined and dhparam_file %}
 DHPARAMS="{{ dhparam_file }}"
 {% endif %}
 {% if disable_tls_1_2 is defined %}
