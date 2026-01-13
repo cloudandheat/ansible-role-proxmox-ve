@@ -1,0 +1,4 @@
+---
+- name: Disable Ceph telemetry
+  ansible.builtin.command:
+    cmd: "ceph telemetry off"

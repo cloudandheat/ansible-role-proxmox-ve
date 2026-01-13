@@ -6,11 +6,13 @@
   any_errors_fatal: true
   tasks:
 
-    - ansible.builtin.import_role:
+    - name: Install chrony
+      apt:
         name: chrony
+        state: present
+        update_cache: yes
       tags:
         - chrony
-        - never
 
     - ansible.builtin.import_role:
         name: proxmox-ve

@@ -1,0 +1,30 @@
+---
+- name: Check if ceph-mon service exists on this node
+  ansible.builtin.command:
+    cmd: "systemctl list-units --all --type=service --output=json"
+  register: _systemd_services_raw
+
+- name: Extract ceph-mon services
+  ansible.builtin.set_fact:
+    _systemd_ceph_mon_services: "{{ _systemd_services_raw.stdout | from_json | json_query(jquery) }}"
+  vars:
+    jquery: "[?unit.contains(@,'ceph-mon')].unit"
+
+- name: Display found ceph-monitor services per host
+  ansible.builtin.debug:
+    var: _systemd_ceph_mon_services
+
+- name: Reset restart timer for ceph-mon.service, avoiding conflicts of previous failed restart attempts 
+  ansible.builtin.command:
+    cmd: "systemctl reset-failed {{ item }}"
+  loop: "{{ _systemd_ceph_mon_services }}"
+
+- name: Restart ceph-mon.service one by one
+  ansible.builtin.command:
+    cmd: "systemctl restart {{ item }}"
+  register: _systemd_ceph_mon_service_restart
+  failed_when: "_systemd_ceph_mon_service_restart.rc != 0"
+  retries: 4
+  delay: 20
+  throttle: 1
+  loop: "{{ _systemd_ceph_mon_services }}"

@@ -39,14 +39,7 @@ all:
     # Debian 13 (trixie) setup
     # ---------------
     pve_debian_version: "trixie"
-    # Debian 13 uses deb822 repositories for proxmox-ve
-    pve_repository:
-      uris: http://download.proxmox.com/debian/pve
-      suites: "{{ pve_debian_version }}"
-      components: pve-no-subscription
-    # change from ceph-reef to ceph-squid for Debian 13
     pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-squid {{ pve_debian_version }} no-subscription"
-
 
     nameServer: 
       - "9.9.9.9"
@@ -171,26 +164,32 @@ all:
       file: "{{ inventory_dir }}/osd-luks.keys"
       host: "localhost"
 
-    pve_realms:
-    - realm: ansible 
-      base_dn: "DC=cah,DC=test"
-      default: True
-      mode: "ldaps"
-      server1: "10.10.10.201"
-      type: ldap
-      user_attr: uid
-      comment: "test_ldap_realm"
-      bind_dn: "cn=admin,dc=cah,dc=test"
-      group_classes: posixGroup
-      group_name_attr: "cn"
-      sync-defaults-options: "scope=both"
+    # pve_ceph_fs:
+    # # A CephFS filesystem not defined as a Proxmox storage
+    #   - name: backup
+    #     pg_num: 8
+    #     auth: {}
 
-    pve_realm_sync_jobs:
-    - enable-new: "1"
-      enabled: "1"
-      realm: "ansible"
-      remove-vanished: none
-      schedule: "*/1"
-      scope: "both"
-      type: "realm-sync"
+    # pve_realms:
+    # - realm: ansible 
+    #   base_dn: "DC=cah,DC=test"
+    #   default: True
+    #   mode: "ldaps"
+    #   server1: "10.10.10.201"
+    #   type: ldap
+    #   user_attr: uid
+    #   comment: "test_ldap_realm"
+    #   bind_dn: "cn=admin,dc=cah,dc=test"
+    #   group_classes: posixGroup
+    #   group_name_attr: "cn"
+    #   sync-defaults-options: "scope=both"
+
+    # pve_realm_sync_jobs:
+    # - enable-new: "1"
+    #   enabled: "1"
+    #   realm: "ansible"
+    #   remove-vanished: none
+    #   schedule: "*/1"
+    #   scope: "both"
+    #   type: "realm-sync"
 

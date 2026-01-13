@@ -83,7 +83,9 @@ This installation uses Vagrant with libvirt as provider to deploy the virtual ma
     sudo apt update
     sudo apt install -y \
         qemu-kvm \
-        libvirt-dev 
+        libvirt-dev \
+        nfs-kernel-server \
+        nfs-common
     ```
 
 - Enable and start libvirt:
@@ -111,7 +113,7 @@ This installation uses Vagrant with libvirt as provider to deploy the virtual ma
     ```bash
     python3 -m venv venv
     source venv/bin/activate
-    pip3 install ansible
+    pip3 install ansible jmespath netaddr
     ```
 
 ### Usage

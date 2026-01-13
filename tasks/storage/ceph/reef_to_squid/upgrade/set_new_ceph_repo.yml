@@ -1,0 +1,23 @@
+---
+
+- name: gather all apt sources files used by host
+  ansible.builtin.find:
+    paths: "/etc/apt"
+    patterns: '*.list'
+    recurse: true
+  register: _apt_list_files_raw
+
+- name: Filter for file paths in list files
+  ansible.builtin.set_fact:
+    _apt_list_files: "{{ _apt_list_files_raw | json_query(jquery) }}"
+  vars:
+    jquery: "files[*].path"
+  
+- name: Do regex replace for the ceph version
+  ansible.builtin.replace:
+    path: "{{ item }}"
+    regexp: "{{ chup_old_ceph_version_name }}"
+    replace: "{{ chup_new_ceph_version_name }}"
+  loop: "{{ _apt_list_files }}"
+
+  # todo set enterprise or no-sub urls

@@ -42,7 +42,6 @@
 - name: Setup Proxmox repositories
   ansible.builtin.import_tasks: repositories.yml
 
-
 - name: Set the Ceph apt source list file
   ansible.builtin.template:
     src: "system/apt/pve_ceph.list.j2"

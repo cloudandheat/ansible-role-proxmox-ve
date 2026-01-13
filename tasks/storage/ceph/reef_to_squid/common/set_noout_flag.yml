@@ -1,0 +1,6 @@
+---
+
+- name: set the noout flag to avoid rebalancing on unavailable osds during reboots
+  ansible.builtin.command:
+    cmd: "ceph osd set noout"
+  run_once: true

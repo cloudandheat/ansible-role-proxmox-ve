@@ -1,0 +1,46 @@
+---
+- name: Upgrade the node instance
+  ansible.builtin.apt:
+    upgrade: dist
+    update_cache: yes
+
+- name: Check if a reboot is required
+  ansible.builtin.stat:
+    path: "/var/run/rebboot-required"
+  register: _reboot_required_raw
+
+- name: Filter if a reboot is required
+  ansible.builtin.set_fact:
+    _reboot_required: "{{ _reboot_required_raw.stat.exists }}"
+
+- name: Reboot the host after a dist-upgrade
+  ansible.builtin.reboot:
+    reboot_timeout: 1800
+    msg: "This machine is undergoing a reboot, due to prepare a ceph upgrade"
+  when: "_reboot_required is true"
+
+## 
+
+- name: Try to upgrade the node instance again, to validate if we are on the latest version.
+  ansible.builtin.apt:
+    upgrade: dist
+    update_cache: yes
+
+- name: Check if a reboot is required after the potential os upgrade
+  ansible.builtin.stat:
+    path: "/var/run/rebboot-required"
+  register: _reboot_required_2_raw
+
+- name: Filter if a reboot is required
+  ansible.builtin.set_fact:
+    _reboot_required_2: "{{ _reboot_required_2_raw.stat.exists }}"
+
+- name: Fail if a reboot is required -> we should be on latest version, due to first os-upgrade
+  ansible.builtin.assert:
+    that: 
+      - "_reboot_required_2 is false"
+    fail_msg: |
+      Reboot seems still to be required. This should not happen.
+      OS-upgrades, requiring reboots should have been run in advance.
+    success_msg: |
+      Passed check for necessity of pending reboots, due to os-upgrades

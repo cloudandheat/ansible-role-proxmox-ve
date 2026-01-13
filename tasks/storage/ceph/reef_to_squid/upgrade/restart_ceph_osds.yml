@@ -1,0 +1,50 @@
+---
+- name: Check if ceph-mon service exists on this node
+  ansible.builtin.command:
+    cmd: "systemctl list-units --all --type=service --output=json"
+  register: _systemd_services_raw
+
+- name: Extract ceph-osd services know by systemd
+  ansible.builtin.set_fact:
+    _systemd_ceph_osd_services: "{{ _systemd_services_raw.stdout | from_json | json_query(jquery) }}"
+  vars:
+    jquery: "[?unit.contains(@,'ceph-osd')].unit"
+
+- name: Find all osds associated to the individual host
+  ansible.builtin.command:
+    cmd: "ceph osd tree-from {{ ansible_hostname }} --format json"
+  register: _ceph_osd_tree_raw
+
+- name: Extract ceph-osd services names and association from osd tree
+  ansible.builtin.set_fact:
+    _ceph_osds_per_host: "{{ _ceph_osd_tree_raw.stdout | from_json | json_query(jquery) }}"
+  vars:
+    jquery: "nodes[?type=='osd'].id"
+
+- name: Generate list of osd service names based on the ceph osd listing    
+  ansible.builtin.set_fact:
+    _ceph_osd_services_per_host: "{{ _ceph_osd_services_per_host | default ([]) + [ 'ceph-osd@' + (item | string) + '.service' ] }}"
+  loop: "{{ _ceph_osds_per_host | list }}"
+    
+- name: Match found osd ids with known services
+  ansible.builtin.set_fact:
+    _matched_osd_services: "{{ _systemd_ceph_osd_services | intersect(_ceph_osd_services_per_host) | list }}" 
+
+- name: Validated teh following osd services per host
+  ansible.builtin.debug:
+    msg: "Found this matched osd services: {{ _matched_osd_services }}"
+
+- name: Reset restart timer for ceph-osd.services, avoiding conflicts of previous failed restart attempts 
+  ansible.builtin.command:
+    cmd: "systemctl reset-failed {{ item }}"
+  loop: "{{ _matched_osd_services }}"
+
+- name: Restart the OSDs throttled per host
+  ansible.builtin.command:
+    cmd: "systemctl restart {{ item }}"
+  register: _systemd_ceph_osd_service_restart
+  failed_when: "_systemd_ceph_osd_service_restart.rc != 0"
+  retries: 4
+  delay: 20
+  throttle: 1
+  loop: "{{ _matched_osd_services }}"

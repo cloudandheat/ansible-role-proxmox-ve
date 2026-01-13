@@ -5,8 +5,8 @@ Vagrant.configure("2") do |config|
 
   # global provider defaults
   config.vm.provider :libvirt do |libvirt|
-    libvirt.memory = 2560
-    libvirt.cpus = 2
+    libvirt.memory = 4096
+    libvirt.cpus = 4
   end
 
   # network-subnets
