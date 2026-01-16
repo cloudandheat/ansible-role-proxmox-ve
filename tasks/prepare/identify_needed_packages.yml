@@ -37,11 +37,11 @@
 - name: Stage Ceph packages for installation if Ceph is enabled
   ansible.builtin.set_fact:
 #    _pve_install_packages: "{{ _pve_install_packages | union(['ceph', 'ceph-common', 'ceph-mds', 'ceph-fuse', 'gdisk']) }}"
-    _pve_install_packages: "{{ _pve_install_packages | union(['ceph-mon', 'ceph-osd', 'ceph-mgr', 'ceph-mds', 'ceph-base' ,'ceph-mgr-modules-core']) }}"
+    _pve_install_packages: "{{ _pve_install_packages | union(['ceph-mon', 'ceph-osd', 'ceph-mgr', 'ceph-mds', 'ceph-base' ,'ceph-mgr-modules-core', 'ceph-volume']) }}"
   when: "(pve_ceph_enabled | bool) or (pve_ceph_enhanced_enabled | bool)"
 
 - name: Stage Ceph packages for uninstallation if Ceph is disabled
   ansible.builtin.set_fact:
 #    _pve_uninstall_packages: "{{ _pve_uninstall_packages | union(['ceph', 'ceph-common', 'ceph-mds', 'ceph-fuse', 'gdisk']) }}"
-    _pve_uninstall_packages: "{{ _pve_uninstall_packages | union(['ceph-mon', 'ceph-osd', 'ceph-mgr', 'ceph-mds', 'ceph-base', 'ceph-mgr-modules-core']) }}"
+    _pve_uninstall_packages: "{{ _pve_uninstall_packages | union(['ceph-mon', 'ceph-osd', 'ceph-mgr', 'ceph-mds', 'ceph-base', 'ceph-mgr-modules-core', 'ceph-volume']) }}"
   when: "not (pve_ceph_enabled | bool or pve_ceph_enhanced_enabled | bool)"
