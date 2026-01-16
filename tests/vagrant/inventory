@@ -32,14 +32,11 @@ all:
     # Debian 12 (bookworm) setup
     # ---------------
     # pve_debian_version: "bookworm"
-    # pve_repository_line: "deb http://download.proxmox.com/debian/pve {{ pve_debian_version }} pve-no-subscription"
-    # pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-reef {{ pve_debian_version }} no-subscription"
 
 
     # Debian 13 (trixie) setup
     # ---------------
     pve_debian_version: "trixie"
-    pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-squid {{ pve_debian_version }} no-subscription"
 
     nameServer: 
       - "9.9.9.9"
@@ -81,19 +78,6 @@ all:
         comment: "just for testing"
         nodes: ["pve1", "pve2", "pve3"]
     pve_ssh_permit_tty: false 
-
-    pve_users:
-      - userid: foo.test@pve
-        expire: 2 
-#        token: 
-#          - bla
-      - userid: bar.test@pve
-        enable: false
-      - userid: molly.test@pve
-        enable: true
-        groups: "test_group"
-      - userid: ansible@pam
-        enable: true
         
     pve_groups:
       - groupid: test_group
@@ -126,12 +110,45 @@ all:
           - VM.Snapshot  
           - VM.Snapshot.Rollback  
 
+
     pve_pools:
       - poolid: test_pool
         comment: "testing it"
         storage:
           - test0
-          - cah-cephfs 
+          - cah-cephfs
+
+    pve_ceph_pools:
+      - name: test0 
+        quota: 3 
+        add_storages: false
+        target_size: 3 
+        pg_autoscale_mode: "on"
+
+    pve_storages:
+      - storage: test0
+        type: rbd 
+        pool: test0
+        content:
+          - images
+          - rootdir
+      - storage: cah-cephfs
+        type: cephfs 
+        fs-name: cah-cephfs
+        content:
+          - backup
+          - iso
+          - vztmpl
+          - snippets
+
+    pve_ceph_fs:
+      - name: cah-cephfs
+        pools:
+          quota: 10
+          pg_autoscale_mode: "on"
+        meta_pool:
+          pg_autoscale_mode: "on"
+
 
     pve_acls:
       - path: "/pool/test_pool"
@@ -141,34 +158,34 @@ all:
         roles:
           - Administrator
 
-    pve_ceph_pools:
-      - name: test0
-        quota: 3
-        target_size: 3
-        pg_autoscale_mode: "on"
-        add_storages: false
+    pve_users:
+      - userid: foo.test@pve
+        expire: 2 
+#        token: 
+#          - bla
+      - userid: bar.test@pve
+        enable: false
+      - userid: molly.test@pve
+        enable: true
+        groups: "test_group"
+      - userid: ansible@pam
+        enable: true
 
     pve_pbs_encryption_keys_preserve:
       enabled: true
-
-    pve_backup_jobs:
-      - enabled: 1
-        id: "backup-55"
-        schedule: "sun 01:00"
-        mode: "snapshot"
-        storage: "local"
-        all: 1
 
     pve_osd_luks_key_preserve:
       enabled: true
       file: "{{ inventory_dir }}/osd-luks.keys"
       host: "localhost"
 
-    # pve_ceph_fs:
-    # # A CephFS filesystem not defined as a Proxmox storage
-    #   - name: backup
-    #     pg_num: 8
-    #     auth: {}
+    # pve_backup_jobs:
+    #   - enabled: 1
+    #     id: "backup-55"
+    #     schedule: "sun 01:00"
+    #     mode: "snapshot"
+    #     storage: "local"
+    #     all: 1
 
     # pve_realms:
     # - realm: ansible 

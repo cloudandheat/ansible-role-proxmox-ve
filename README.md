@@ -83,9 +83,7 @@ This installation uses Vagrant with libvirt as provider to deploy the virtual ma
     sudo apt update
     sudo apt install -y \
         qemu-kvm \
-        libvirt-dev \
-        nfs-kernel-server \
-        nfs-common
+        libvirt-dev
     ```
 
 - Enable and start libvirt:

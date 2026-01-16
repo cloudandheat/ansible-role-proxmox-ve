@@ -87,7 +87,7 @@ pve_debian_repository_lines:
 pve_repository_line: "deb http://download.proxmox.com/debian/pve {{ pve_debian_version }} pve-no-subscription"
 # pve_ceph_repository_line -> str: (Declarative) PVE Ceph apt sources list repository mirror line.
 # (Further information: https://pve.proxmox.com/wiki/Package_Repositories)
-pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-reef {{ pve_debian_version }} no-subscription"
+pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-{{ pve_ceph_default_version }} {{ pve_debian_version }} no-subscription"
 # pve_extra_uninstall_packages -> list[str]: (Irreversible) Names of apt packages to remove (purge).
 pve_extra_uninstall_packages: []
 # pve_extra_packages -> list[str]: (Irreversible) Names of additional apt packages to install on each host.
