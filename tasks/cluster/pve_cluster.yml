@@ -101,10 +101,15 @@
                 {% if pve_cluster_addr1 | default(false, true) %}
                 --link1 {{ pve_cluster_addr1 }}{% if pve_cluster_addr1_priority | default(false, true) %},priority={{ pve_cluster_addr1_priority }}{% endif %}
                 {% endif %}
+              register: pvecm_add
               # Ensure that nodes join one-by-one, because cluster joins create a lock.
               throttle: 1
               args:
                 creates: "/etc/pve/corosync.conf"
+              failed_when: >
+                pvecm_add.rc != 0
+                or ('unable to copy ssh ID' in (pvecm_add.stderr | default('')))
+                or ('unable to copy ssh ID' in (pvecm_add.stderr | default('')))
 
             - name: Remove cluster initialization node as known host
               ansible.builtin.blockinfile:
