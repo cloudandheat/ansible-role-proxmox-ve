@@ -84,12 +84,13 @@
       - linux-image-amd64
     state: absent
 
-# workaround for vagrant-test-setup
-- name: Hold grub-pc to avoid interactive prompt
-  ansible.builtin.shell: |
-    echo "grub-pc hold" | sudo dpkg --set-selections
-  become: true
-  when: "pve_vagrant_test_setup | bool"
+- name: Silence grub-pc device selection prompt
+  ansible.builtin.debconf:
+    name: grub-pc
+    question: grub-pc/install_devices_empty
+    value: "true"
+    vtype: boolean
+  when: "ansible_distribution_major_version | int >= 12"
 
 - name: Perform safe upgrades on repo changes
   ansible.builtin.apt:
@@ -132,15 +133,6 @@
   ansible.builtin.file:
     path: "/etc/apt/sources.list.d/pve-enterprise.list"
     state: absent
-
-# workaround for vagrant-test-setup
-- name: Silence grub-pc device selection prompt
-  ansible.builtin.debconf:
-    name: grub-pc
-    question: grub-pc/install_devices_empty
-    value: "true"
-    vtype: boolean
-  when: "pve_vagrant_test_setup | bool"
 
 - name: Remove unnecessary or unwanted apt packages
   ansible.builtin.apt:

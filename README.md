@@ -116,7 +116,7 @@ This installation uses Vagrant with libvirt as provider to deploy the virtual ma
 
 ### Usage
 
-In case you want to test custom configurations in the vagrant-setup, you have to add your desired changes to `tests/vagrant/inventory`. The parameter `pve_vagrant_test_setup` must always be set to `true` for the vagrant test installation to prevent problems with the `grub-pc` package.
+In case you want to test custom configurations in the vagrant-setup, you have to add your desired changes to `tests/vagrant/inventory`. 
 
 Vagrant-actions:
 
@@ -149,7 +149,3 @@ or set in inventory `pve_remove_subscription_warning: false` to fix this right f
 ### hangs at `Query RBD pool config overrides`
 
 Reason is that it has not OSDs found. Either there are not OSDs available or the inventory is not correct. For example in libvirt instances, like in the vagrant test setup, the OSDs have as path `vda`, `vdb`, ... instead of `sda`, `sdb`, ...
-
-### Installation failes while `apt dist-upgrade`
-
-In some tasks of the `apt.yml` like the task `Perform system dist upgrades if requested` an `apt dist-upgrade` is performed, which fail in some virtual setups. The problem is the `grub-pc`-package. For the vagrant test setup, the package was skipped to avoid the error. An alternative solution is to manually ssh into the failed node and run `sudo apt-get update && sudo apt-get -y dist-upgrade` and handle the appearing input-window by yourself and run the playbook then again or run with `pve_vagrant_test_setup: true` in your inventory to skip the `grub-pc`-package.

@@ -49,7 +49,6 @@ all:
       ha: "shutdown_policy=migrate"
 
     # WORKAROUNDS
-    pve_vagrant_test_setup: true
     pve_remove_subscription_warning: false
 
     pve_group: 

@@ -17,9 +17,6 @@ pve_domain: "example.test"
 # pve_no_log -> bool: Suppress some ansible log output of this role.
 pve_no_log: false
 
-# pve_vagrant_test_setup -> bool: This flag has to be set to true for the vagrant test setups to skip some grub related steps
-pve_vagrant_test_setup: false
-
 # NOTE: for Debian 13 deb822 repositories are used, which require a different configuration
 pve_repository:
   uris: http://download.proxmox.com/debian/pve
