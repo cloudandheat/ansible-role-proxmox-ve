@@ -138,6 +138,50 @@ Vagrant-actions:
 
 - access webui of the deployed proxmox by entering `https://10.10.111.11:8006` in your local browser. This address is defined in the Vagrantfile and points directly to the first instance. There is a pre-defined test admin user. Select the Realm `Proxmox VE authentication server` with username `adminuser` and password `asdfasdf` to login as this user.
 
+### Add Proxmox-Backup-Server for testing
+
+It is also possible to create a local Proxmox-Backup-Server and attach this to the Proxmox-VE installation in the Vagrant test-VMs.
+
+HINT: The Vagrant-setup uses libvirt/KVM, so other hypervisor like Virtualbox doesn't work at the same time with the Vagrant VMs, so you have to use libvirt for this addtional PBS-VM too. To make this easier, the package `virt-manager` can be installed to get a minimal graphical GUI to create libvirt-VMs.
+
+- Download a PBS image: https://www.proxmox.com/en/products/proxmox-backup-server/get-started
+
+- Create a small VM in libvirt with the ISO-image and select the vagrant-network to place the new VM within this network too, to make the accessable by the Proxmox-VE in the Vagrant-VMs. Use a static IP-address.
+
+- Run the normal installation in the GUI.
+
+- Log into the PBS-VM over SSH from one of the Vangrant-VMs, because this makes the installation easier, than with the terminal of the virt-manager. The user within the PBS-VM for the ssh-login is `root`.
+
+- Configure a basic setup within the PBS
+
+    ```bash
+    mkdir /mnt/backups/teststore
+    mkdir -p /mnt/backups/teststore
+    proxmox-backup-manager datastore create teststore /mnt/backups/teststore
+    proxmox-backup-manager user create backupuser@pbs --password asdfasdf
+    proxmox-backup-manager acl update /datastore/teststore DatastoreAdmin --auth-id backupuser@pbs
+    proxmox-backup-manager cert info | grep Fingerprint
+    ```
+
+    For the configuration in the Proxmox-VE, you need the username `backupuser`, the password `asdfasdf`, the datastore-name `teststore` and the fingerprint of the last line.
+
+- Configure PBS storage in proxmox-VE
+
+    ```
+    pve_storages:
+    - storage: "pbs_ansible"
+      type: "pbs"
+      username: "backupuser@pbs"
+      server: "192.168.121.42"
+      datastore: "teststore"
+      content: "backup"
+      fingerprint: "cc:eb:98:25:34:6e:b8:13:d8:e4:5e:da:a7:f9:82:41:fb:7f:6a:bd:25:4e:7d:9a:a8:2a:cc:22:01:cb:90:d7"
+      password: "asdfasdf"
+      encryption-key: '{"kdf":null,"created":"2025-10-29T15:32:02+01:00","modified":"2025-10-29T15:32:02+01:00","data":"dGVzdC1rZXk=","fingerprint":"e7:93:02:00:5f:0c:57:dc:51:c3:a7:ac:8c:dd:c0:84:9d:01:de:8c:13:4c:06:4f:95:ff:e7:f2:1d:11:08:6c"}'
+    ```
+
+    Set the necessary information for your setup. `server` has to be the IP-address of your PBS-server, where the Vagrant-VMs can reach it. The `encryption-key` is optional to encrypt the backups.
+
 ## Troubleshooting:
 
 ### Blank webui
