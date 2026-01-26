@@ -1,5 +1,7 @@
 ---
 # Must be run before any other apt task or else apt task will fail on missing auth
+# This is only done on debian 12 and below, because since debian 13 the sources
+# have changed, which requires another workaround later
 - name: Remove automatically created VE Enterprise repo configuration
   ansible.builtin.file:
     path: "/etc/apt/sources.list.d/pve-enterprise.list"
@@ -20,12 +22,12 @@
     state: present
   when: "ansible_distribution_major_version | int < 12"
 
-- name: Trust Proxmox' packaging key on Debian 12
+- name: Trust Proxmox' packaging key on Debian >= 12
   ansible.builtin.copy:
     src: "proxmox-release-{{ ansible_distribution_release }}.gpg"
     dest: "/etc/apt/trusted.gpg.d/proxmox-release-{{ ansible_distribution_release }}.gpg"
-    mode: "644"
-  when: "ansible_distribution_major_version | int <= 12"
+    mode: "0644"
+  when: "ansible_distribution_major_version | int >= 12"
 
 - name: Set the Proxmox apt source list file
   ansible.builtin.template:
@@ -35,6 +37,10 @@
     mode: "0644"
     # validate: "apt-get update -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/%s"
   register: _pve_repo
+  when: "ansible_distribution_major_version | int <= 12"
+
+- name: Setup Proxmox repositories
+  ansible.builtin.import_tasks: repositories.yml
 
 - name: Set the Ceph apt source list file
   ansible.builtin.template:
@@ -78,6 +84,14 @@
       - linux-image-amd64
     state: absent
 
+- name: Silence grub-pc device selection prompt
+  ansible.builtin.debconf:
+    name: grub-pc
+    question: grub-pc/install_devices_empty
+    value: "true"
+    vtype: boolean
+  when: "ansible_distribution_major_version | int >= 12"
+
 - name: Perform safe upgrades on repo changes
   ansible.builtin.apt:
     update_cache: true
@@ -103,6 +117,9 @@
   retries: 3
   register: _system_upgrade
 
+- name: Setup Proxmox repositories
+  ansible.builtin.import_tasks: repositories.yml
+  
 - name: Install Proxmox VE and related packages
   ansible.builtin.apt:
     update_cache: true

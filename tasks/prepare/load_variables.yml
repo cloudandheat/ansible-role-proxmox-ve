@@ -1,6 +1,6 @@
 ---
 - name: Gather distribution specific variables
-  ansible.builtin.include_vars: "debian-{{ ansible_distribution_release }}.yml"
+  ansible.builtin.include_vars: "debian-{{ pve_debian_version }}.yml"
 
 - name: Ensure pve_group variable is valid
   ansible.builtin.assert:

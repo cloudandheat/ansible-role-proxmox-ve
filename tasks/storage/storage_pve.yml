@@ -27,7 +27,7 @@
         - name: Ensure that every entry has a storage
           ansible.builtin.assert:
             that: "item.storage | default(false, true) is not false"
-            msg: "Definition of '{{ item }}' must have a storage!"
+            msg: "Definition of '{{ item }}' must have a field of type 'storage'!"
           loop: "{{ pve_storages }}"
           loop_control:
             label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"

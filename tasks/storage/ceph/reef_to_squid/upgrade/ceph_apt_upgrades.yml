@@ -1,0 +1,10 @@
+---
+# todo check if on enterprise in advanced
+- name: Force pvesubscription update
+  ansible.builtin.command:
+    cmd: "pvesubscription update --force"
+
+- name: Upgrade the node instance to install new ceph version binaries
+  ansible.builtin.apt:
+    upgrade: dist
+    update_cache: yes

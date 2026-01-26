@@ -1,0 +1,37 @@
+---
+- name: Check the ha migration strategy
+  run_once: true
+  block:
+
+    - name: Check if /etc/pve/datacenter.cfg exists
+      ansible.builtin.stat:
+        path: "/etc/pve/datacenter.cfg"
+      register: _pve_dc_cfg_exists
+
+    - name: Check if the chup_datacenter_ha_settings is configured with the default value of 'conditional'
+      ansible.builtin.assert:
+        that: 
+          - "chup_datacenter_ha_settings == 'conditional'"
+        fail_msg: "no datacenter.cfg found, but the ha behavior is not set to the default of conditional "
+        success_msg: "Passed check for chup_datacenter_ha_settings behavior"
+      when: "_pve_dc_cfg_exists.stat.exists == false"
+
+    - name: Slurp content of datacenter.cfg
+      ansible.builtin.slurp:
+        src: "/etc/pve/datacenter.cfg"
+      register: _pve_dc_cfg_content
+
+    - name: Extract configured ha shutdown_policy
+      ansible.builtin.set_fact:
+        _pve_mig_strt: "{{ _pve_mig_strt_raw[0] | split('=') | json_query('[1]') }}"
+      vars:
+        _pve_mig_strt_raw: "{{ _pve_dc_cfg_content.content | b64decode | split('\n') | 
+                                select('match', 'ha: shutdown_policy') }}"
+
+    - name: Check if the chup_datacenter_ha_settings is configured according /etc/pve/datacenter.cfg
+      ansible.builtin.assert:
+        that: 
+          - "chup_datacenter_ha_settings == _pve_mig_strt"
+        fail_msg: "datacenter.cfg holds a diffrent migration strategy for guests, than requested"
+        success_msg: "Passed check for chup_datacenter_ha_settings behavior"
+      when: "_pve_dc_cfg_exists.stat.exists == true"

@@ -17,6 +17,14 @@ pve_domain: "example.test"
 # pve_no_log -> bool: Suppress some ansible log output of this role.
 pve_no_log: false
 
+# NOTE: for Debian 13 deb822 repositories are used, which require a different configuration
+pve_repository:
+  uris: http://download.proxmox.com/debian/pve
+  # suites -> str: Name of the debian distribution. For example "trixie"
+  suites: "{{ ansible_distribution_release }}"
+  components: pve-no-subscription
+# pve_enable_enterprise_repository -> bool: Enable/Disable the enterprise-repository in Debian13/PVE9 setups
+pve_enable_enterprise_repository: false
 
 ### PVEPROXY + SSL/TLS
 # pve_pveproxy_defaults -> Optional dict={
@@ -76,7 +84,7 @@ pve_debian_repository_lines:
 pve_repository_line: "deb http://download.proxmox.com/debian/pve {{ pve_debian_version }} pve-no-subscription"
 # pve_ceph_repository_line -> str: (Declarative) PVE Ceph apt sources list repository mirror line.
 # (Further information: https://pve.proxmox.com/wiki/Package_Repositories)
-pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-reef {{ pve_debian_version }} no-subscription"
+pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-{{ pve_ceph_default_version }} {{ pve_debian_version }} no-subscription"
 # pve_extra_uninstall_packages -> list[str]: (Irreversible) Names of apt packages to remove (purge).
 pve_extra_uninstall_packages: []
 # pve_extra_packages -> list[str]: (Irreversible) Names of additional apt packages to install on each host.
@@ -857,3 +865,20 @@ pve_filesystems: []
 # 'zstd' -> int: Zstd threads. N=0 uses half of the available cores, if N is set to a value bigger than 0, N is used as thread count. (default=1)
 #}]: (Declarative) Defines a list of Backup jobs to be run on a regular schedule within the cluster
 pve_backup_jobs: null
+
+
+# Ceph-upgrade reef-to-squid
+
+# default variables
+chup_disable_telemetry: true
+chup_use_enterprise_repo: false
+chup_pve_min_version: "8.2"
+chup_ceph_min_version: "18.2.4"
+# Disable mostly for testing
+chup_ignore_healthwarns: false
+# Number of tries to recheck in 10 second intervalls, if the ceph has become healthy
+chup_healthcheck_retries: 5
+# allowed values are: freeze, failover, migrate, conditional
+chup_datacenter_ha_settings: "migrate"
+chup_old_ceph_version_name: "reef"
+chup_new_ceph_version_name: "squid"

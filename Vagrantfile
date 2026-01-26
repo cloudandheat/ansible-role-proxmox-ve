@@ -1,27 +1,58 @@
 Vagrant.configure("2") do |config|
-  config.vm.box = "debian/bullseye64"
+  # There is no official debian 13 image for vagrant, because of the license-change
+  # Used this alternative images instead: https://github.com/alchemy-solutions/vagrant-cloud-images
+  config.vm.box = "cloud-image/debian-13"
 
+  # global provider defaults
   config.vm.provider :libvirt do |libvirt|
-    libvirt.memory = 2560
-    libvirt.cpus = 2
-    libvirt.storage :file, :size => '128M'
-    libvirt.storage :file, :size => '128M'
+    libvirt.memory = 4096
+    libvirt.cpus = 4
   end
+
+  # network-subnets
+  network_bases = ["10.10.111.", "10.10.112.", "10.10.113."]
 
   N = 3
   (1..N).each do |machine_id|
-    config.vm.define "pve-#{machine_id}" do |machine|
-      machine.vm.hostname = "pve-#{machine_id}"
+    config.vm.define "pve1-#{machine_id}" do |machine|
+      machine.vm.hostname = "pve1-#{machine_id}"
 
+      # Add three extra disks of 5G each in addition to the root disk for ceph-osd's
+      machine.vm.provider :libvirt do |libvirt|
+        libvirt.storage :file, size: "5G", name: "pve1-#{machine_id}-vdb1.qcow2"
+        libvirt.storage :file, size: "5G", name: "pve1-#{machine_id}-vdb2.qcow2"
+        libvirt.storage :file, size: "5G", name: "pve1-#{machine_id}-vdb3.qcow2"
+      end
+
+      # Define 3 private networks with deterministic IPs so machines can reach each other
+      # This will create networks like 10.10.110.11, .12, .13 for machine ids 1..3
+      network_bases.each_with_index do |base, idx|
+        # choose host part: e.g. .11, .12, .13
+        host_octet = 10 + machine_id
+        ip = "#{base}#{host_octet}"
+
+        # Vagrant will auto-create a libvirt host-only network for this subnet when needed
+        # auto_config=true means vagrant will write the IP inside the VM (Debian supports this)
+        machine.vm.network "private_network",
+                           ip: ip,
+                           auto_config: true
+      end
+
+      # Additional sleeps to ensure, that the private networks already exist
+      # It is not a perfect solution, because there is still the small chance of a race-condition
+      machine.vm.provision "shell", inline: "echo waiting for network; sleep 10"
+
+      # Only run provision on the last machine
       if machine_id == N
+        machine.vm.provision "shell", inline: "echo waiting for network; sleep 10"
+
+        # Run provision.yml for the 'pve-test' group
         machine.vm.provision :ansible do |ansible|
-          ansible.limit = "all,localhost"
-          ansible.playbook = "tests/vagrant/package_role.yml"
-          ansible.verbose = true
-        end
-        machine.vm.provision :ansible do |ansible|
-          ansible.limit = "all"
-          ansible.playbook = "tests/vagrant/provision.yml"
+          ansible.inventory_path = "tests/vagrant/inventory"
+          ansible.limit = "pve-test"
+          ansible.playbook = "tests/vagrant/playbook.yaml"
+          # For debugging the verbose-output can be increased here
+          # ansible.verbose = "vvv"
           ansible.verbose = true
         end
       end

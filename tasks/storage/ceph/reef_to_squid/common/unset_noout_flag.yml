@@ -1,0 +1,5 @@
+- name: Unset Ceph 'noout' flag after upgrade is complete
+  ansible.builtin.shell: ceph osd unset noout
+  register: unset_noout_result
+  changed_when: "'noout' in unset_noout_result.stdout"
+  run_once: true

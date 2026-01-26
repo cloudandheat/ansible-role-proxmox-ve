@@ -1,6 +1,9 @@
 ---
 - name: PVE HA groups management
-  when: "inventory_hostname == _init_node"
+  when:
+    - "inventory_hostname == _init_node"
+    # in proxmox-ve 9 the old ha-groups concept doesn't exist anymore
+    - "ansible_distribution_major_version | int <= 12"
   tags: ha_groups
   block:
     - name: Normalize PVE HA groups parameter
@@ -14,9 +17,9 @@
         - name: Normalize PVE HA groups parameter into empty list if none
           ansible.builtin.set_fact:
             _pve_ha_groups: "{{ [] }}"
-          when: 
+          when:
             - "pve_cluster_ha_groups is none"
-    
+
     - name: Prepare PVE HA groups management
       when: "inventory_hostname == _init_node"
       block:

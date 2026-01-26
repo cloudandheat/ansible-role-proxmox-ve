@@ -1,0 +1,15 @@
+---
+- name: Wait for ceph monitor minimum version to match {{ chup_new_ceph_version_name }}
+  ansible.builtin.command: ceph mon dump --format json
+  register: _ceph_mon_dump_raw
+  vars:
+    _ceph_mon_min_version_name: >-
+      {{
+        _ceph_mon_dump_raw.stdout
+        | from_json
+        | json_query('min_mon_release_name')
+      }}
+  until: _ceph_mon_min_version_name == chup_new_ceph_version_name
+  failed_when: _ceph_mon_min_version_name != chup_new_ceph_version_name
+  retries: 10
+  delay: 10

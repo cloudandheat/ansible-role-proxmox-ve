@@ -27,6 +27,14 @@
   tags:
     - ssh
 
+- name: Upgrade ceph-reef to ceph-squid
+  ansible.builtin.import_tasks: storage/ceph/reef_to_squid/ceph_reef_to_squid_upgrade.yml
+  when: 
+    - "'ceph-squid' in pve_ceph_repository_line"
+    - "ansible_distribution_major_version | int == 12"
+  tags:
+    - ceph_upgrade
+
 - name: Upgrade or downgrade the system packages
   ansible.builtin.import_tasks: system/apt.yml
   tags:

@@ -1,0 +1,37 @@
+- name: Check Proxmox version (pve-manager)
+  ansible.builtin.command: 
+    cmd: "pveversion"
+  register: _pve_version_raw
+  changed_when: false
+
+- name: Extract PVE versioning number
+  ansible.builtin.set_fact:
+    _pve_version: "{{ _pve_version_as_list[1] }}"
+  vars:
+    _pve_version_as_list: "{{ _pve_version_raw.stdout | split('/') }}"
+
+- name: Fail if Proxmox VE version is < {{ chup_pve_min_version }}
+  ansible.builtin.fail:
+    msg: "❌ Proxmox VE version must be >= {{ chup_pve_min_version }}! Found: {{ _pve_version | string }}"
+  when: 
+    - "_pve_version is version( chup_pve_min_version ,'<')"
+    - " chup_ignore_healthwarns != true " 
+
+- name: Check Ceph version
+  ansible.builtin.command: 
+    cmd: "ceph -v"
+  register: _ceph_version_raw
+  changed_when: false
+
+- name: Extract Ceph version string
+  ansible.builtin.set_fact:
+    _ceph_version: "{{ _ceph_version_list[2] }}"
+  vars:  
+    _ceph_version_list: "{{ _ceph_version_raw.stdout | split(' ') }}"
+
+- name: Fail if Ceph version is less than {{ chup_ceph_min_version }}
+  ansible.builtin.fail:
+    msg: "❌ Ceph version must be >= {{ chup_ceph_min_version }}. Found: {{ _ceph_version }}"
+  when: 
+    - "_ceph_version is version( chup_ceph_min_version, '<')"
+    - " chup_ignore_healthwarns != true " 
