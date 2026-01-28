@@ -1,6 +1,13 @@
 # main tasks file for ansible-role-proxmox
 # just call other tasks here (with their tags)
 ---
+
+- name: Cleanup leftovers to avoid conflicts
+  ansible.builtin.import_tasks: prepare/cleanup_leftovers.yml
+  tags:
+    - always
+    - prepare
+
 - name: Gather, normalize, validate, build variables
   ansible.builtin.import_tasks: prepare/load_variables.yml
   tags:

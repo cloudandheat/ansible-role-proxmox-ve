@@ -228,6 +228,8 @@
                 - "item.name not in (_ceph_mds_metadata | map(attribute='name'))"
                 # TODO FQDN TEST
                 - "item.hostname == inventory_hostname"
+              retries: 5
+              delay: 5
 
             - name: Ensure declared MDS services are started
               ansible.builtin.systemd:

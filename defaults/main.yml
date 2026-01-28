@@ -520,6 +520,11 @@ pve_ceph_enabled: false
 # pve_ceph_enhanced_enabled -> bool: (Irreversible) If an enhanced role should install and configure ceph for PVE. Mutually exclusive with pve_ceph_enabled.
 #                                                   NOTE: Requires pve_ceph_network to be set and correct.
 pve_ceph_enhanced_enabled: false
+# pve_ceph_clear_all_osds -> bool: If set to true, in case of a fresh installation, all devices marked to be a Ceph OSD, will be wiped, 
+#                                  to avoid conflicts in case these disks were previously already an OSD in another Ceph.
+#                                  If ceph is already installed on the node, this flag will be ignored and only print a warning.
+#                                                   NOTE: Requires pve_ceph_enhanced_enabled to be set to true.
+pve_ceph_clear_all_osds: false
 # pve_ceph_network -> str: (Irreversible) Ceph public(/cluster) network in CIDR notation.
 #                                         NOTE: Aliased by "ceph_public_ip: <host_ip_address>/<netmask>" host variable.
 pve_ceph_network: "{{ (ansible_default_ipv4.network + '/' + ansible_default_ipv4.netmask) | ansible.utils.ipaddr('net') }}"

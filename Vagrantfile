@@ -24,6 +24,29 @@ Vagrant.configure("2") do |config|
         libvirt.storage :file, size: "5G", name: "pve1-#{machine_id}-vdb3.qcow2"
       end
 
+      # Alternative storage, which is not deleted by a "vagrant destroy" and used again
+      # from existing, when running a new "vagrant up". This is useful for the creation of
+      # a new proxmox-ve with ceph with old ceph-OSDs from a different deployment.
+      # machine.vm.provider :libvirt do |libvirt|
+      #   libvirt.storage :file,
+      #     size: "5G",
+      #     name: "pve1-#{machine_id}-vdb1.qcow2",
+      #     allow_existing: true,
+      #     managed: false
+
+      #   libvirt.storage :file,
+      #     size: "5G",
+      #     name: "pve1-#{machine_id}-vdb2.qcow2",
+      #     allow_existing: true,
+      #     managed: false
+
+      #   libvirt.storage :file,
+      #     size: "5G",
+      #     name: "pve1-#{machine_id}-vdb3.qcow2",
+      #     allow_existing: true,
+      #     managed: false
+      # end
+
       # Define 3 private networks with deterministic IPs so machines can reach each other
       # This will create networks like 10.10.110.11, .12, .13 for machine ids 1..3
       network_bases.each_with_index do |base, idx|
@@ -52,8 +75,11 @@ Vagrant.configure("2") do |config|
           ansible.limit = "pve-test"
           ansible.playbook = "tests/vagrant/playbook.yaml"
           # For debugging the verbose-output can be increased here
-          # ansible.verbose = "vvv"
-          ansible.verbose = true
+          #ansible.verbose = "vvv"
+          # Set default extra vars here
+          # ansible.extra_vars = {
+          #   pve_ceph_clear_all_osds: true
+          # }
         end
       end
     end
