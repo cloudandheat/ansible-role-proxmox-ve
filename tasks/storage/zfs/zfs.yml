@@ -1,0 +1,10 @@
+- name: Setup ZFS storage pools
+  ansible.builtin.import_tasks: setup.yml
+
+- name: Configuration of ZFS storage pools
+  ansible.builtin.include_tasks: pool_conf.yml
+  loop: "{{ pve_storages }}"#
+  loop_control:
+    loop_var: storage_item
+  when: 
+    - "storage_item.type == 'zfspool'"
