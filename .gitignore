@@ -10,8 +10,7 @@
 fetch/
 .vagrant/
 /.settings/
-
-Vagrantfile                               
+                               
 old/                               
 *pycache*                               
 *.pyc                               
@@ -23,4 +22,5 @@ osd-luks.keys
 pbs.keys
 .ansible
 .venv
+proxmox_env
 

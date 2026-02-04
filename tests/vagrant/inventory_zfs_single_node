@@ -1,0 +1,126 @@
+ 
+---
+pve-test:
+  hosts:
+    pve1-1:
+      ansible_hostname: pve1-1
+      ansible_host: "10.10.111.11"
+      ansible_user: vagrant
+      ansible_ssh_private_key_file: .vagrant/machines/pve1-1/libvirt/private_key
+      pve_cluster_addr0: "10.10.111.11"
+      ceph_public_ip: "10.10.112.11/24"
+
+all:
+  vars:
+    ####################################################
+    # Debian Version
+    ####################################################
+
+    # Debian 12 (bookworm) setup
+    # ---------------
+    # pve_debian_version: "bookworm"
+
+    # Debian 13 (trixie) setup
+    # ---------------
+    pve_debian_version: "trixie"
+
+    ####################################################
+    # Network
+    ####################################################
+    pve_domain: px0.test
+
+    pve_pveproxy_defaults:
+      listen_ip: "0.0.0.0"
+
+    nameServer: 
+      - "9.9.9.9"
+    ntp_serverconf:
+      - "10.10.10.1 iburst minpoll 5"
+      - "10.10.6.2 iburst minpoll 5"
+    ntpPoolConf: "2.arch.pool.ntp.org iburst maxsources 4"
+
+    ####################################################
+    # Workarounds
+    ####################################################
+    pve_remove_subscription_warning: false
+    dhparam_size: 2048
+    pve_ssh_permit_tty: false 
+    
+    ####################################################
+    # ZFS-storage
+    ####################################################
+    pve_zfs_enabled: true
+
+    pve_pools:
+      - poolid: test_pool
+        comment: "testing it"
+        storage:
+          - zfs-storage
+
+    pve_storages:
+      - storage: zfs-storage
+        type: zfspool
+        pool: zfs-pool
+        content:
+          - rootdir
+          - images
+
+    pve_zfs_disks:
+      - /dev/vdb
+      - /dev/vdc
+      - /dev/vdd
+
+    ####################################################
+    # User
+    ####################################################
+    pve_acls:
+      - path: "/pool/test_pool"
+        users:
+          - bar.test@pve
+          - foo.test@pve
+        roles:
+          - Administrator
+        
+    pve_groups:
+      - groupid: test_group
+
+    pve_users:
+      - userid: foo.test@pve
+        expire: 2 
+#        token: 
+#          - bla
+      - userid: bar.test@pve
+        enable: false
+      - userid: molly.test@pve
+        enable: true
+        groups: "test_group"
+      - userid: ansible@pam
+        enable: true
+
+    pve_roles:
+      - roleid: TestPoolUser
+        privs:
+          - Datastore.AllocateSpace
+          - Datastore.AllocateTemplate
+          - Datastore.Audit  
+          - Pool.Audit  
+          - SDN.Audit  
+          - SDN.Use  
+          - VM.Allocate  
+          - VM.Audit  
+          - VM.Backup  
+          - VM.Clone  
+          - VM.Config.CDROM  
+          - VM.Config.CPU  
+          - VM.Config.Cloudinit  
+          - VM.Config.Disk  
+          - VM.Config.HWType  
+          - VM.Config.Memory  
+          - VM.Config.Network  
+          - VM.Config.Options  
+          - VM.Console  
+          - VM.Migrate  
+          # - VM.Monitor  # doesn't exist in PVE 9 anymore
+          - VM.PowerMgmt  
+          - VM.Snapshot  
+          - VM.Snapshot.Rollback  
