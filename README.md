@@ -76,8 +76,11 @@ The following sections are example references for configuration. Further details
 
 ### Ceph storage for multi-node installation
 
+#### General example
+
 ```yaml
 pve_ceph_enhanced_enabled: true
+
 pve_ceph_osds: 
   - hosts: [ "pve1-1", "pve1-2", "pve1-3" ]
     device: "/dev/vdb"
@@ -127,6 +130,29 @@ pve_ceph_fs:
     meta_pool:
       pg_autoscale_mode: "on"
 ```
+
+#### Additional options
+
+1. clear all OSDs
+
+  Set `pve_ceph_clear_all_osds: true` to wipe all OSD disk in the initial deploy process. This in necessary in case the disks come from an older or another Ceph. To avoid conflicts, with this flag the header of the disks will be deleted to ensure an clean Ceph installation. This in only done in an initial installation. When Ceph is already installed, the flag is ignored.
+
+2. detect disks for OSDs
+
+  Instead of defining all disks manually, it is also possible to automatically detect all non-root disks and use them as OSDs for ceph. Add:
+  
+  ```yaml
+  pve_ceph_osd_detection:
+    enabled: true
+    only_nvme: true
+    encrypted: true
+  ```
+
+  - `enabled` enables the feature
+  - `only_nvme` uses only NVMs-SSDs for the OSDs
+  - `encrypted` define all as encrypted OSDs
+
+  The option `pve_ceph_osds` must be removed from the inventory in case the detection is enabled. 
 
 ### ZFS storage for single-node installation
 

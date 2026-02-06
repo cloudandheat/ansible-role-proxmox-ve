@@ -7,6 +7,7 @@
 - new flag `pve_ceph_clear_all_osds` to wipe all as OSD marked disks in an initial run, to avoid conflicts in case the disks come from another Ceph-cluster
 - new ZFS-implementation to create also ZFS-pools and attach them to the proxmox-ve
 - new Vagrant-file to test single-node installation with ZFS-storage
+- new configs to enable and configure an automatic detection of additional devices, which should be used as Ceph-OSD's, so they have not configured manually one by one
 
 ## v1.0.0
 

@@ -2,8 +2,8 @@
 # just call other tasks here (with their tags)
 ---
 
-- name: Cleanup leftovers to avoid conflicts
-  ansible.builtin.import_tasks: prepare/cleanup_leftovers.yml
+- name: Prepare Ceph-OSDs
+  ansible.builtin.import_tasks: prepare/prepare_ceph_osd_disks.yml
   tags:
     - always
     - prepare

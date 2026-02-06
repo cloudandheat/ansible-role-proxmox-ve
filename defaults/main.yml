@@ -520,11 +520,6 @@ pve_ceph_enabled: false
 # pve_ceph_enhanced_enabled -> bool: (Irreversible) If an enhanced role should install and configure ceph for PVE. Mutually exclusive with pve_ceph_enabled.
 #                                                   NOTE: Requires pve_ceph_network to be set and correct.
 pve_ceph_enhanced_enabled: false
-# pve_ceph_clear_all_osds -> bool: If set to true, in case of a fresh installation, all devices marked to be a Ceph OSD, will be wiped, 
-#                                  to avoid conflicts in case these disks were previously already an OSD in another Ceph.
-#                                  If ceph is already installed on the node, this flag will be ignored and only print a warning.
-#                                                   NOTE: Requires pve_ceph_enhanced_enabled to be set to true.
-pve_ceph_clear_all_osds: false
 # pve_ceph_network -> str: (Irreversible) Ceph public(/cluster) network in CIDR notation.
 #                                         NOTE: Aliased by "ceph_public_ip: <host_ip_address>/<netmask>" host variable.
 pve_ceph_network: "{{ (ansible_default_ipv4.network + '/' + ansible_default_ipv4.netmask) | ansible.utils.ipaddr('net') }}"
@@ -607,7 +602,17 @@ pve_ceph_wipe_destroyed_osds: false
 # 'host' -> str|host: Host on which LUKS keys should be saved. (E.g. "localhost" for ansible control node.)
 # }]: (Declarative) Define if and where OSD metadata should be saved to. (Including OSD LVM encryption keys.)
 pve_osd_luks_key_preserve: null
-
+# pve_ceph_clear_all_osds -> bool: If set to true, in case of a fresh installation, all devices marked to be a Ceph OSD, will be wiped, 
+#                                  to avoid conflicts in case these disks were previously already an OSD in another Ceph.
+#                                  If ceph is already installed on the node, this flag will be ignored and only print a warning.
+#                                                   NOTE: Requires pve_ceph_enhanced_enabled to be set to true.
+pve_ceph_clear_all_osds: false
+# pve_ceph_osd_detection -> Optional[dict={
+# 'enabled' -> bool: (default=false) Enable, if all non-root disks should be used as Ceph-OSDs
+# 'only_nvme' -> bool: (default=false) Enable to used only non-root NVMe disks als Ceph-OSDs
+# 'encrypted -> bool: (Optional) Use OSD (LUKS) encryption.
+# }]: Detect non-root (NVMe-) disks to use them as Ceph-OSDs. Only used, when pve_ceph_enhanced_enabled is enabled and no pve_ceph_osds were explicitly defined in the inventory.
+pve_ceph_osd_detection: null
 
 ### Ceph Pools
 # pve_ceph_pools -> list[dict={
