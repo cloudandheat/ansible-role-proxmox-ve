@@ -1,0 +1,36 @@
+---
+
+# In case the used OSD came from an old Proxmox-VE / Ceph deployment, they must
+# be wiped to make the usable as OSDs for the new ceph
+# Requires that "pve_ceph_clear_all_osds" is set to true to enforce the cleanup
+# It will be only done, when Ceph is not already installed, so only in case of a fresh installation.
+- name: Cleanup old foreign Ceph-OSDs
+  when: 
+    - "pve_ceph_enhanced_enabled | default(false)"
+    - "pve_ceph_clear_all_osds | default(false)"
+  block:
+    - name: Check if Ceph is installed
+      command: ceph --version
+      register: ceph_check
+      changed_when: false
+      failed_when: false
+
+    - name: Set fact if Ceph is installed
+      set_fact:
+        ceph_installed: "{{ ceph_check.rc == 0 }}"
+
+    - name: Warn if Ceph is already installed
+      ansible.builtin.debug:
+        msg: "WARNING: Ceph is already installed on this node. Skipping deletion of Ceph-OSDs, even it was requested via 'pve_ceph_clear_all_osds'."
+      when: ceph_installed
+
+    - name: Clear all declared Ceph OSD disks if requested
+      ansible.builtin.shell: |
+        dd if=/dev/zero of={{ item.device }} bs=1M count=100
+        sync
+      loop: "{{ pve_ceph_osds }}"
+      when:
+        - not ceph_installed
+      register: _ceph_disk_clear
+      changed_when: true
+      failed_when: "_ceph_disk_clear.rc != 0"

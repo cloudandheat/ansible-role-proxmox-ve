@@ -22,3 +22,5 @@ osd-luks.keys
 .env*
 pbs.keys
 .ansible
+.venv
+

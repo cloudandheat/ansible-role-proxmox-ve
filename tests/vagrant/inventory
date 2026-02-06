@@ -51,6 +51,9 @@ all:
     # WORKAROUNDS
     pve_remove_subscription_warning: false
 
+    # delete all Ceph-OSDs in case of a fresh installation
+    # pve_ceph_clear_all_osds: true
+
     pve_group: 
       - pve-test
 
