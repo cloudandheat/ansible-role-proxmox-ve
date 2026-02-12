@@ -1,0 +1,309 @@
+ 
+---
+pve1-test:
+  hosts:
+    pve1-1:
+      ansible_hostname: pve1-1
+      ansible_host: "10.10.111.11"
+      ansible_user: vagrant
+      ansible_ssh_private_key_file: .vagrant/machines/pve1-1/libvirt/private_key
+      pve_cluster_addr0: "10.10.111.11"
+      ceph_public_ip: "10.10.112.11/24"
+
+    pve1-2:
+      ansible_hostname: pve1-2
+      ansible_host: "10.10.111.12"
+      ansible_user: vagrant
+      ansible_ssh_private_key_file: .vagrant/machines/pve1-2/libvirt/private_key
+      pve_cluster_addr0: "10.10.111.12"
+      ceph_public_ip: "10.10.112.12/24"
+
+    pve1-3:
+      ansible_hostname: pve1-3
+      ansible_host: "10.10.111.13"
+      ansible_user: vagrant
+      ansible_ssh_private_key_file: .vagrant/machines/pve1-3/libvirt/private_key
+      pve_cluster_addr0: "10.10.111.13"
+      ceph_public_ip: "10.10.112.13/24"
+
+pve2-test:
+  hosts:
+    pve2-1:
+      ansible_hostname: pve2-1
+      ansible_host: "10.10.111.21"
+      ansible_user: vagrant
+      ansible_ssh_private_key_file: .vagrant/machines/pve2-1/libvirt/private_key
+      pve_cluster_addr0: "10.10.111.21"
+      ceph_public_ip: "10.10.112.21/24"
+
+    pve2-2:
+      ansible_hostname: pve2-2
+      ansible_host: "10.10.111.22"
+      ansible_user: vagrant
+      ansible_ssh_private_key_file: .vagrant/machines/pve2-2/libvirt/private_key
+      pve_cluster_addr0: "10.10.111.22"
+      ceph_public_ip: "10.10.112.22/24"
+
+    pve2-3:
+      ansible_hostname: pve2-3
+      ansible_host: "10.10.111.23"
+      ansible_user: vagrant
+      ansible_ssh_private_key_file: .vagrant/machines/pve2-3/libvirt/private_key
+      pve_cluster_addr0: "10.10.111.23"
+      ceph_public_ip: "10.10.112.23/24"
+
+all:
+  vars:
+    ####################################################
+    # Debian Version
+    ####################################################
+
+    # Debian 12 (bookworm) setup
+    # ---------------
+    # pve_debian_version: "bookworm"
+
+    # Debian 13 (trixie) setup
+    # ---------------
+    pve_debian_version: "trixie"
+
+    ####################################################
+    # Network
+    ####################################################
+    pve_domain: px0.test
+
+    pve_pveproxy_defaults:
+      listen_ip: "0.0.0.0"
+
+    nameServer: 
+      - "9.9.9.9"
+    ntp_serverconf:
+      - "10.10.10.1 iburst minpoll 5"
+      - "10.10.6.2 iburst minpoll 5"
+    ntpPoolConf: "2.arch.pool.ntp.org iburst maxsources 4"
+
+    ####################################################
+    # Workarounds
+    ####################################################
+    pve_remove_subscription_warning: false
+    dhparam_size: 2048
+    pve_ssh_permit_tty: false 
+
+    ####################################################
+    # HA
+    ####################################################
+    pve_cluster_enabled: true
+
+    pve_group: 
+      - pve1-test
+      - pve2-test
+
+    pve_datacenter_options:
+      ha: "shutdown_policy=migrate"
+
+    pve_cluster_ha_groups:
+      - name: "group0"
+        comment: "just for testing"
+        nodes: ["pve1", "pve2", "pve3"]
+    
+    ####################################################
+    # Ceph-storage
+    ####################################################
+
+    pve_ceph_enhanced_enabled: true
+
+    # delete all Ceph-OSDs in case of a fresh installation
+    # pve_ceph_clear_all_osds: true
+
+    # detect non-root-disks
+    # (required that pve_ceph_osds has no entries)
+    # pve_ceph_osd_detection:
+    #   enabled: true
+    #   only_nvme: true
+    #   encrypted: true
+
+    pve_ceph_osds: 
+      - hosts: [ "pve1-1", "pve1-2", "pve1-3", "pve2-1", "pve2-2", "pve2-3" ]
+        device: "/dev/vdb"
+        encrypted: true
+      - hosts: [ "pve1-1", "pve1-2", "pve1-3", "pve2-1", "pve2-2", "pve2-3" ]
+        device: "/dev/vdc"
+        encrypted: true
+      - hosts: [ "pve1-1", "pve1-2", "pve1-3", "pve2-1", "pve2-2", "pve2-3" ]
+        device: "/dev/vdd"
+        encrypted: true
+  
+    pve_pools:
+      - poolid: test_pool
+        comment: "testing it"
+        storage:
+          - test-ceph-storage
+          - test-cephfs-storage
+
+    pve_storages:
+      - storage: test-ceph-storage
+        type: rbd 
+        pool: test-ceph
+        content:
+          - images
+          - rootdir
+      - storage: test-cephfs-storage
+        type: cephfs 
+        fs-name: test-cephfs
+        content:
+          - backup
+          - iso
+          - vztmpl
+          - snippets
+      #############
+      # BACKUPS
+      #############
+      # - storage: "pbs_ansible"
+      #   type: "pbs"
+      #   username: "backupuser@pbs"
+      #   server: "192.168.121.42"
+      #   datastore: "teststore"
+      #   content: "backup"
+      #   fingerprint: "cd:eb:98:25:34:6e:b8:13:d8:e4:5e:da:a7:f9:82:41:fb:8f:6a:bd:25:4e:7d:9a:a8:2a:cc:22:01:cb:90:d7"
+      #   password: "asdfasdf"
+      #   encryption-key: '{"kdf":null,"created":"2025-10-29T15:32:02+01:00","modified":"2025-10-29T15:32:02+01:00","data":"dGVzdC1rZXk=","fingerprint":"e7:93:02:00:5f:0c:57:dc:51:c3:a7:ac:8c:dd:c0:84:9d:01:de:8c:13:4c:06:4f:95:ff:e7:f2:1d:11:08:6c"}'
+      
+    # pve_pbs_encryption_keys_preserve:
+    #   enabled: true
+
+    pve_ceph_pools:
+      - name: test-ceph 
+        quota: 3 
+        add_storages: false
+        target_size: 3 
+        pg_autoscale_mode: "on"
+
+    pve_ceph_fs:
+      - name: test-cephfs
+        pools:
+          quota: 10
+          pg_autoscale_mode: "on"
+        meta_pool:
+          pg_autoscale_mode: "on"
+
+    pve_osd_luks_key_preserve:
+      enabled: true
+      file: "{{ inventory_dir }}/osd-luks.keys"
+      host: "localhost"
+        
+    ####################################################
+    # Mirror
+    ####################################################
+
+    pve_rbd_journal_migration: true
+
+    pve_rbd_mirrors:
+      - pool: test-ceph
+        source: pve1-test
+        target: pve2-test
+        mode: pool
+      - pool: test-cephfs_data
+        source: pve1-test
+        target: pve2-test
+        mode: pool
+
+    pve_ceph_config:
+      - name: rbd_default_features
+        value: 125
+        who: global
+      - name: rbd_default_features
+        value: 125
+        who: mon
+      - name: rbd_default_features
+        value: 125
+        who: client
+
+    ####################################################
+    # User
+    ####################################################
+    pve_acls:
+      - path: "/pool/test_pool"
+        users:
+          - bar.test@pve
+          - foo.test@pve
+        roles:
+          - Administrator
+        
+    pve_groups:
+      - groupid: test_group
+
+    pve_users:
+      - userid: foo.test@pve
+        expire: 2 
+#        token: 
+#          - bla
+      - userid: bar.test@pve
+        enable: false
+      - userid: molly.test@pve
+        enable: true
+        groups: "test_group"
+      - userid: ansible@pam
+        enable: true
+
+    pve_roles:
+      - roleid: TestPoolUser
+        privs:
+          - Datastore.AllocateSpace
+          - Datastore.AllocateTemplate
+          - Datastore.Audit  
+          - Pool.Audit  
+          - SDN.Audit  
+          - SDN.Use  
+          - VM.Allocate  
+          - VM.Audit  
+          - VM.Backup  
+          - VM.Clone  
+          - VM.Config.CDROM  
+          - VM.Config.CPU  
+          - VM.Config.Cloudinit  
+          - VM.Config.Disk  
+          - VM.Config.HWType  
+          - VM.Config.Memory  
+          - VM.Config.Network  
+          - VM.Config.Options  
+          - VM.Console  
+          - VM.Migrate  
+          # - VM.Monitor  # doesn't exist in PVE 9 anymore
+          - VM.PowerMgmt  
+          - VM.Snapshot  
+          - VM.Snapshot.Rollback  
+
+
+
+
+
+    # pve_backup_jobs:
+    #   - enabled: 1
+    #     id: "backup-55"
+    #     schedule: "sun 01:00"
+    #     mode: "snapshot"
+    #     storage: "local"
+    #     all: 1
+
+    # pve_realms:
+    # - realm: ansible 
+    #   base_dn: "DC=cah,DC=test"
+    #   default: True
+    #   mode: "ldaps"
+    #   server1: "10.10.10.201"
+    #   type: ldap
+    #   user_attr: uid
+    #   comment: "test_ldap_realm"
+    #   bind_dn: "cn=admin,dc=cah,dc=test"
+    #   group_classes: posixGroup
+    #   group_name_attr: "cn"
+    #   sync-defaults-options: "scope=both"
+
+    # pve_realm_sync_jobs:
+    # - enable-new: "1"
+    #   enabled: "1"
+    #   realm: "ansible"
+    #   remove-vanished: none
+    #   schedule: "*/1"
+    #   scope: "both"
+    #   type: "realm-sync"
+

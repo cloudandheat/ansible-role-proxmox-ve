@@ -1,0 +1,28 @@
+---
+- hosts:
+    - pve1-test
+    - pve2-test
+  remote_user: vagrant
+  become: yes
+  any_errors_fatal: true
+  tasks:
+
+    - name: Install chrony
+      apt:
+        name: chrony
+        state: present
+        update_cache: yes
+      tags:
+        - chrony
+
+    - ansible.builtin.import_role:
+        name: proxmox-ve
+      tags:
+        - pve
+
+    - name: Create test-admin-user
+      ansible.builtin.shell: |
+        pveum user add adminuser@pve || true
+        pveum passwd adminuser@pve --password asdfasdf || true
+        pveum acl modify / -user adminuser@pve -role Administrator || true
+      when: inventory_hostname == "pve1-1" or inventory_hostname == "pve2-1"

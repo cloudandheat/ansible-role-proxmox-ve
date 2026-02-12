@@ -257,7 +257,7 @@
                     dest: "{{ item.item.tmp_file_dir | default('/tmp') }}/{{ item.item.target }}.{{ item_item_peer_keyring_file }}"
                     content: "{{ item.content | b64decode }}"
                     mode: "0644"
-                  delegate_to: "{{ item.item.tmp_file_host }}"
+                  delegate_to: "{{ item.item.get('tmp_file_host', omit) }}"
                   loop: "{{ _rbd_mirror_peer_keyrings.results }}"
                   when:
                     - "item.item.source == pve_group"
@@ -267,7 +267,7 @@
                   ansible.builtin.slurp:
                     src: "{{ item.tmp_file_dir | default('/tmp') }}/{{ item.target }}.{{ item_peer_keyring_file }}"
                   register: _rbd_mirror_peer_keyrings
-                  delegate_to: "{{ item.tmp_file_host }}"
+                  delegate_to: "{{ item.get('tmp_file_host', omit) }}"
                   loop: "{{ pve_rbd_mirrors }}"
                   when:
                     - "item.target == pve_group"
@@ -277,7 +277,7 @@
                   ansible.builtin.file:
                     path: "{{ item.tmp_file_dir | default('/tmp') }}/{{ item.target }}.{{ item_peer_keyring_file }}"
                     state: absent
-                  delegate_to: "{{ item.tmp_file_host }}"
+                  delegate_to: "{{ item.get('tmp_file_host', omit) }}"
                   loop: "{{ pve_rbd_mirrors }}"
                   when:
                     - "item.target == pve_group"
@@ -344,7 +344,7 @@
                     dest: "{{ item.tmp_file_dir | default('/tmp') }}/{{ item.source }}_ceph.conf"
                     content: "{{ _rbd_mirror_src_ceph_conf.content | b64decode }}"
                     mode: "0644"
-                  delegate_to: "{{ item.tmp_file_host }}"
+                  delegate_to: "{{ item.get('tmp_file_host', omit) }}"
                   loop: "{{ pve_rbd_mirrors }}"
                   when:
                     - "item.source == pve_group"
@@ -354,7 +354,7 @@
                   ansible.builtin.slurp:
                     src: "{{ item.tmp_file_dir | default('/tmp') }}/{{ item.source }}_ceph.conf"
                   register: _rbd_mirror_src_ceph_confs
-                  delegate_to: "{{ item.tmp_file_host }}"
+                  delegate_to: "{{ item.get('tmp_file_host', omit) }}"
                   loop: "{{ pve_rbd_mirrors }}"
                   when:
                     - "item.target == pve_group"
@@ -364,7 +364,7 @@
                   ansible.builtin.file:
                     path: "{{ item.tmp_file_dir | default('/tmp') }}/{{ item.source }}_ceph.conf"
                     state: absent
-                  delegate_to: "{{ item.tmp_file_host }}"
+                  delegate_to: "{{ item.get('tmp_file_host', omit) }}"
                   loop: "{{ pve_rbd_mirrors }}"
                   when:
                     - "item.target == pve_group"
@@ -395,6 +395,37 @@
               loop: "{{ pve_rbd_mirrors }}"
               when: "item.target == pve_group"
               changed_when: true
+
+            - name: Create journal pool
+              ansible.builtin.command: "pveceph pool create {{ pve_rbd_journal_pool }} --application rbd"
+
+            - name: Set global journal pool
+              ansible.builtin.command: "ceph config set global rbd_journal_pool {{ pve_rbd_journal_pool }}"
+
+            - name: Enable journaling with specific journal pool for all RBD images
+              ansible.builtin.shell: |
+                set -e
+
+                for IMAGE in $(rbd ls "{{ item.pool }}"); do
+                  # get journal-pool of image
+                  CURRENT_JOURNAL_POOL=$(rbd journal info --pool {{ item.pool }} --image $IMAGE --format json | jq -r '.object_pool // empty')
+                  
+                  if [ "$CURRENT_JOURNAL_POOL" != "{{ pve_rbd_journal_pool }}" ]; then
+                    # disable journaling
+                    rbd feature disable {{ item.pool }}/$IMAGE journaling
+                    # sleep as workaround to fix that on the target-host the journal-pool is also registered for the image
+                    sleep 2
+                    # set the new journal-pool
+                    rbd feature enable {{ item.pool }}/$IMAGE journaling --journal-pool {{ pve_rbd_journal_pool }}
+                    echo "changed"
+                  fi
+                done
+              register: journal_update
+              changed_when: "'changed' in journal_update.stdout"
+              loop: "{{ pve_rbd_mirrors }}"
+              when:
+                - "item.source == pve_group"
+                - "pve_rbd_journal_migration | bool"
 
             ### RBD Pool Setup ###
             - name: Create missing Ceph rbd pools if enabled

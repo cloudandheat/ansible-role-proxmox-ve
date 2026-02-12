@@ -135,24 +135,28 @@ pve_ceph_fs:
 
 1. clear all OSDs
 
-  Set `pve_ceph_clear_all_osds: true` to wipe all OSD disk in the initial deploy process. This in necessary in case the disks come from an older or another Ceph. To avoid conflicts, with this flag the header of the disks will be deleted to ensure an clean Ceph installation. This in only done in an initial installation. When Ceph is already installed, the flag is ignored.
+    Set `pve_ceph_clear_all_osds: true` to wipe all OSD disk in the initial deploy process. This in necessary in case the disks come from an older or another Ceph. To avoid conflicts, with this flag the header of the disks will be deleted to ensure an clean Ceph installation. This in only done in an initial installation. When Ceph is already installed, the flag is ignored.
 
 2. detect disks for OSDs
 
-  Instead of defining all disks manually, it is also possible to automatically detect all non-root disks and use them as OSDs for ceph. Add:
-  
-  ```yaml
-  pve_ceph_osd_detection:
-    enabled: true
-    only_nvme: true
-    encrypted: true
-  ```
+    Instead of defining all disks manually, it is also possible to automatically detect all non-root disks and use them as OSDs for ceph. Add:
+    
+    ```yaml
+    pve_ceph_osd_detection:
+      enabled: true
+      only_nvme: true
+      encrypted: true
+    ```
 
-  - `enabled` enables the feature
-  - `only_nvme` uses only NVMs-SSDs for the OSDs
-  - `encrypted` define all as encrypted OSDs
+    - `enabled` enables the feature
+    - `only_nvme` uses only NVMs-SSDs for the OSDs
+    - `encrypted` define all as encrypted OSDs
 
-  The option `pve_ceph_osds` must be removed from the inventory in case the detection is enabled. 
+    The option `pve_ceph_osds` must be removed from the inventory in case the detection is enabled. 
+
+3. journal migration
+
+    The mirror-journal in now located in a separate ceph pool. It is possible to also migrate old journals into the new separeted structure, but this requires to set `pve_rbd_journal_migration` to true. This option is per default false, because the mirroring is canceled for the migration and triggered again after the change and so this migration should always be done on purpose when the admin is aware and prepared for this to avoid dataloss.
 
 ### ZFS storage for single-node installation
 
@@ -224,13 +228,21 @@ The Vagrant installation was tested with Debian 12 and 13 and uses 13 as default
 
 This installation uses Vagrant with libvirt as provider to deploy the virtual machines.
 
+- install vagrant
+
+    see: https://developer.hashicorp.com/vagrant/install#linux
+
 - Install apt-packages necessary for libvirt and the libvirt-provider
 
     ```bash
     sudo apt update
     sudo apt install -y \
+        make \
+        python3 \
+        gcc \
         qemu-kvm \
-        libvirt-dev
+        libvirt-dev \
+        libvirt-daemon-system
     ```
 
 - Enable and start libvirt:
@@ -255,7 +267,16 @@ This installation uses Vagrant with libvirt as provider to deploy the virtual ma
 
 - Install local ansible required to execute the playbook
 
+  - via apt:
+
     ```bash
+    sudo apt-get install ansible python3-jmespath python3-netaddr
+    ```
+
+  - or via pip
+
+    ```bash
+    sudo apt-get install python3.12-venv pip3
     python3 -m venv venv
     source venv/bin/activate
     pip3 install ansible jmespath netaddr
@@ -263,13 +284,17 @@ This installation uses Vagrant with libvirt as provider to deploy the virtual ma
 
 ### Usage
 
-In case you want to test custom configurations in the vagrant-setup, you have to add your desired changes to `tests/vagrant/inventory_ceph_multi_node` or `tests/vagrant/inventory_zfs_single_node`. 
+In case you want to test custom configurations in the vagrant-setup, you have to add your desired changes in `tests/vagrant/` to `inventory_ceph_multi_node`, `inventory_ceph_multi_node_mirror` or `inventory_zfs_single_node`. 
 
 Select the desired vagrantfile based on your desired setup. 
 
 To tests a 3-node setup with Ceph storage use:
 
 `export VAGRANT_VAGRANTFILE=Vagrantfile_ceph_multi_node`
+
+To tests 2 mirrored proxmox-installations, with 3-node and Ceph storage each, use:
+
+`export VAGRANT_VAGRANTFILE=Vagrantfile_ceph_multi_node_mirror`
 
 To test a single node with a ZFS storage use:
 
@@ -293,7 +318,7 @@ Vagrant-actions:
 
     `vagrant destroy -f`
 
-- access webui of the deployed proxmox by entering `https://10.10.111.11:8006` in your local browser. This address is defined in the Vagrantfile and points directly to the first instance. There is a pre-defined test admin user. Select the Realm `Proxmox VE authentication server` with username `adminuser` and password `asdfasdf` to login as this user.
+- access webui of the deployed proxmox by entering `https://10.10.111.11:8006` in your local browser. This address is defined in the Vagrantfile and points directly to the first instance. There is a pre-defined test admin user. Select the Realm `Proxmox VE authentication server` with username `adminuser` and password `asdfasdf` to login as this user. If you rolled out the vagrant setup on a remove system, like a VM in the cloud, then you can use an ssh-tunnel like `ssh -L 8006:10.10.111.11:8006 <USER>@<REMOTE_ADDRESS>` and then access the dashboard via `https://127.0.0.1:8006`.
 
 ### Add Proxmox-Backup-Server for testing
 

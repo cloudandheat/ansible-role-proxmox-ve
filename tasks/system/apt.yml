@@ -74,6 +74,7 @@
       - python3-apt # required by Ansible
       - openssl # needed by ssl_config tasks
       - openvswitch-switch # needed for ovs-configuration
+      - jq # needed to parse json-output of commands
     state: present
     update_cache: true
 
