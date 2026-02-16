@@ -1,11 +1,33 @@
+- name: Check if ZFS pool exists
+  command: zpool list -H -o name {{ storage_item.pool }}
+  register: zpool_check
+  changed_when: false
+  failed_when: false
 
-- name: Create ZFS Pools
-  community.general.zfs:
-    name: "{{ item.pool }}"
+- name: Create ZFS pool
+  community.general.zpool:
+    name: "{{ storage_item.pool }}"
     state: present
-  with_items: "{{ pve_storages }}"
-  when: "item.type == 'zfspool'"
+    vdevs:
+      - type: mirror
+        disks: "{{ pve_zfs_disks }}"
+    pool_properties:
+      ashift: 12
+  when: zpool_check.rc != 0
   tags: storage
+
+- name: Check ZFS pool health
+  command: zpool list -H -o health {{ storage_item.pool }}
+  register: zpool_health
+  changed_when: false
+
+- name: Assert ZFS pool is healthy
+  assert:
+    that:
+      - zpool_health.stdout == "ONLINE"
+    fail_msg: "ZFS pool {{ storage_item.pool }} is NOT healthy"
+    success_msg: "ZFS pool {{ storage_item.pool }} is healthy"
+
 
 - name: Create ZFS Volumes specified by user
   community.general.zfs:

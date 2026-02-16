@@ -118,13 +118,7 @@
         - ceph
 
     - name: Setup ZFS storage pools
-      ansible.builtin.import_tasks: storage/zfs/setup.yml
-      when: "pve_zfs_enabled | bool"
-      tags:
-        - zfs
-
-    - name: Configuration of ZFS storage pools
-      ansible.builtin.import_tasks: storage/zfs/pool_conf.yml
+      ansible.builtin.import_tasks: storage/zfs/zfs.yml
       when: "pve_zfs_enabled | bool"
       tags:
         - zfs

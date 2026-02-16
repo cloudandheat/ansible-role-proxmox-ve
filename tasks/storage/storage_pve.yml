@@ -160,14 +160,39 @@
           loop: "{{ _pve_storages_attr_rem | default([]) }}"
           changed_when: true
 
-        - name: Modify PVE storage storage definition parameters
+        - name: Get existing PVE storages
+          ansible.builtin.command: pvesh get /storage --output-format json
+          register: pve_storage_list
+          changed_when: false
+
+        - name: Build existing storage map
+          ansible.builtin.set_fact:
+            pve_existing_storages: "{{ pve_storage_list.stdout | from_json | map(attribute='storage') | list }}"
+            # pve_eisting_storages not looks like this: ['local', 'local-lvm', 'backup']
+
+        - name: Create PVE storage definition
           ansible.builtin.command:
-            "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quote_values=false, quotes='', reject_keys=reject_keys) }}"
-          vars:
-            reject_keys: "{{ unsup_params_map[item.type] + ['storage'] + ['datastore'] + ['encryption-key'] }}"
+            "pvesh create /storage {{ item | dict2args(bool2int=true, quote_values=false, quotes='') }}"
           loop: "{{ _pve_storages_mod }}"
           loop_control:
             label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
+          when: item.storage not in pve_existing_storages
+          changed_when: true
+
+        - name: Modify PVE storage definition parameters
+          ansible.builtin.command:
+            "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quote_values=false, quotes='', reject_keys=reject_keys) }}"
+          vars:
+            reject_keys: >-
+              {{
+                unsup_params_map[item.type]
+                + ['storage', 'datastore', 'encryption-key']
+                + ((item.type == 'zfspool') | ternary(['pool'], []))
+              }}
+          loop: "{{ _pve_storages_mod }}"
+          loop_control:
+            label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
+          when: item.storage in pve_existing_storages
           changed_when: true
         
         - name: Handling the encryption keys for pbs storages, due to allowed special (and useful) value of 'autogen'

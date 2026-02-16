@@ -321,7 +321,7 @@
                 state: stopped
               # TODO FQDN test
               delegate_to: "{{ hostvars[_fqdn2invname[item]].inventory_hostname | default(item) }}"
-              loop: "{{ _ceph_mds_metadata | map(attribute='hostname') }}"
+              loop: "{{ _ceph_mds_metadata | default([]) | map(attribute='hostname') }}"
 
             - name: Unmount PVE storage CephFS fs mounts
               # NOTICE do not use "umount -l", because resource will never be freed
@@ -361,7 +361,7 @@
                 state: started
               # TODO FQDN test
               delegate_to: "{{ hostvars[_fqdn2invname[item]].inventory_hostname | default(item) }}"
-              loop: "{{ _ceph_mds_metadata | map(attribute='hostname') }}"
+              loop: "{{ _ceph_mds_metadata | default([]) | map(attribute='hostname') }}"
 
         - name: Create declared CephFS filesystems
           tags: ceph_fs_create
