@@ -1,0 +1,59 @@
+- name: Determine if rollout backup is enabled
+  ansible.builtin.set_fact:
+    _run_rollout_backup: "{{ pve_rollout_backup.enabled | default(false) | bool }}"
+
+- name: Check if vzdump exists (Proxmox installed)
+  ansible.builtin.stat:
+    path: /usr/in/vzdump
+  register: vzdump_binary
+  when: _run_rollout_backup
+
+- name: Make backup of all VMs
+  when:
+    - _run_rollout_backup
+    - not vzdump_binary.stat.exists
+  block:
+    - name: Skip backup because Proxmox is not installed yet
+      ansible.builtin.debug:
+        msg: "Skipping rollout backup — vzdump not present (initial bootstrap run)."
+
+
+    - name: Determine storage type
+      ansible.builtin.set_fact:
+        _selected_storage_type: >-
+          {{
+            'local'
+            if pve_rollout_backup.storage == 'local'
+            else (
+              pve_storages
+              | selectattr('storage', 'equalto', pve_rollout_backup.storage)
+              | map(attribute='type')
+              | first
+            )
+          }}
+
+    - name: Validate storage exists (except local)
+      ansible.builtin.assert:
+        that:
+          - pve_rollout_backup.storage == 'local'
+            or pve_rollout_backup.storage in (pve_storages | map(attribute='storage') | list)
+        fail_msg: "Selected storage is not defined."
+
+    - name: Validate storage type (must be pbs or local)
+      ansible.builtin.assert:
+        that:
+          - _selected_storage_type in ['pbs', 'local']
+        fail_msg: "Storage must be type 'pbs' or 'local'."
+
+    - name: Validate backup mode
+      ansible.builtin.assert:
+        that:
+          - pve_rollout_backup.mode in ['snapshot', 'suspend', 'stop']
+        fail_msg: "Invalid backup mode."
+
+
+    - name: Run vzdump for all VMs
+      ansible.builtin.command: >
+        vzdump --all
+        --storage {{ pve_rollout_backup.storage }}
+        --mode {{ pve_rollout_backup.mode }}

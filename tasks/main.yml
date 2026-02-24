@@ -2,6 +2,12 @@
 # just call other tasks here (with their tags)
 ---
 
+- name: Make backup before running the playbook
+  ansible.builtin.import_tasks: prepare/rollout_backup.yml
+  tags:
+    - always
+    - prepare
+
 - name: Prepare Ceph-OSDs
   ansible.builtin.import_tasks: prepare/prepare_ceph_osd_disks.yml
   tags:

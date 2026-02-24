@@ -9,6 +9,7 @@
 - new Vagrant-file to test single-node installation with ZFS-storage
 - new configs to enable and configure an automatic detection of additional devices, which should be used as Ceph-OSD's, so they have not configured manually one by one
 - offload rbd mirror-journal into a separate pool and added optional `pve_rbd_journal_migration` to migrate existing mirror-journals into this new pool
+- new optional tasks to backup all virtual machines at the start of the role to prevent dataloss in case of a broken ansible run
 
 ### Fixed
 

@@ -196,13 +196,24 @@ To attach a Proxmox-Backup-Server, a block like the following can be added:
     content: "backup"
     fingerprint: "cc:eb:98:25:34:6e:b8:13:d8:e4:5e:da:a7:f9:82:41:fb:7f:6a:bd:25:4e:7d:9a:a8:2a:cc:22:01:cb:90:d7"
     password: "asdfasdf"
-    encryption-key: '{"kdf":null,"created":"2025-10-29T15:32:02+01:00","modified":"2025-10-29T15:32:02+01:00","data":"dGVzdC1rZXk=","fingerprint":"e7:93:02:00:5f:0c:57:dc:51:c3:a7:ac:8c:dd:c0:84:9d:01:de:8c:13:4c:06:4f:95:ff:e7:f2:1d:11:08:6c"}'
+    # encryption-key: '{"kdf":null,"created":"2025-10-29T15:32:02+01:00","modified":"2025-10-29T15:32:02+01:00","data":"dGVzdC1rZXk=","fingerprint":"e7:93:02:00:5f:0c:57:dc:51:c3:a7:ac:8c:dd:c0:84:9d:01:de:8c:13:4c:06:4f:95:ff:e7:f2:1d:11:08:6c"}'
 
-pve_pbs_encryption_keys_preserve:
-  enabled: true
+# pve_pbs_encryption_keys_preserve:
+#   enabled: true
 ```
 
 `datastore`, `username`, `fingerprint` and `password` coming from the backup-server. The encryption parameter are optional.
+
+To make backups of all virtual machines at the start of each playbook run, add:
+
+```yaml
+pve_rollout_backup:
+  enabled: true
+  mode: "snapshot"
+  storage: "pbs_ansible"
+```
+
+Per default this is disabled, so it has to be enabled manually.
 
 ## Usage
 
@@ -376,3 +387,18 @@ pve_ceph_mds_nodes:
   - hostname: 125-host
     name: mds-125-host
 ```
+
+### backup to Proxmox-Backup-Server fails
+
+In case that the creation of backup to a Proxmox-Backup-Server fails with an error like:
+
+```log
+"ERROR: VM 100 qmp command 'backup' failed - client closed connection",
+"INFO: aborting backup job",
+"ERROR: VM 100 not running",
+"VM 100 not running",
+"ERROR: Backup of VM 100 failed - VM 100 qmp command 'backup' failed - client closed connection",
+```
+
+even the VM was running and after this, the VM is stopped by the backup-process. 
+A possible reason is a problem with the `encryption-key`-config for the used PBS-storage. To test this case, disable the encryption, rollout the playbook again and test the backup again. In case this solved the problem, check the `encryption-key`-config.
