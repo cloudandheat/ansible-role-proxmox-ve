@@ -879,9 +879,18 @@ pve_filesystems: []
 # 'zstd' -> int: Zstd threads. N=0 uses half of the available cores, if N is set to a value bigger than 0, N is used as thread count. (default=1)
 #}]: (Declarative) Defines a list of Backup jobs to be run on a regular schedule within the cluster
 pve_backup_jobs: null
+# pve_rollout_backup -> Optional[dict={
+# 'enabled' -> bool: (default=false) Enable, to backup all virtual machines
+# 'mode' -> string: (default=snapshot) Backup mode (snapshot, suspend, stop)
+# 'storage -> string: (default=local) PVE-storage for the backup to use.
+# }]: Configuration to make backups from all virtual machines on the host at the really start of the ansible playbook run in order to prevent dataloss for the case of a broken following rollout.
+pve_rollout_backup:
+  enabled: false
+  mode: "snapshot"
+  storage: "local"
 
 
-# Ceph-upgrade reef-to-squid
+### CEPH-UPGRADE configuration
 
 # default variables
 chup_disable_telemetry: true
