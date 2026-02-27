@@ -67,9 +67,6 @@ all:
     ####################################################
     pve_cluster_enabled: true
 
-    # delete all Ceph-OSDs in case of a fresh installation
-    # pve_ceph_clear_all_osds: true
-
     pve_group: 
       - pve-test
 
@@ -84,7 +81,18 @@ all:
     ####################################################
     # Ceph-storage
     ####################################################
+
     pve_ceph_enhanced_enabled: true
+
+    # delete all Ceph-OSDs in case of a fresh installation
+    # pve_ceph_clear_all_osds: true
+
+    # detect non-root-disks
+    # (required that pve_ceph_osds has no entries)
+    # pve_ceph_osd_detection:
+    #   enabled: true
+    #   only_nvme: true
+    #   encrypted: true
 
     pve_ceph_osds: 
       - hosts: [ "pve1-1", "pve1-2", "pve1-3" ]

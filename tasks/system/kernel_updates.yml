@@ -39,7 +39,6 @@
         - "not _is_cluster_member"
         - "pve_reboot_on_kernel_update | bool"
         - "_pve_kernel_update.new_kernel_exists"
-
 - name: Collect kernel packages
   collect_kernel_info:
   register: _pve_kernel
