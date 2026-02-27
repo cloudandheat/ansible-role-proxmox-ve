@@ -695,6 +695,10 @@ pve_rbd_mirrors: []
 pve_rbd_mirror_remove: true
 # pve_remove_secondary_images -> bool: (Irreversible) If secondary images in non-declared pools should get removed.
 pve_remove_secondary_images: false
+# pve_rbd_journal_pool -> str: Name of journal-pool.
+pve_rbd_journal_pool: "rbd-journal"
+# pve_remove_secondary_images -> bool: (Irreversible) If enabled, the journal is moved to a (new) journal-pool. This shortly disalbes the mirroring of the pool.
+pve_rbd_journal_migration: false
 
 ### CephFS
 # pve_ceph_fs -> list[dict={
