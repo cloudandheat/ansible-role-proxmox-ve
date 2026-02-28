@@ -72,6 +72,7 @@
     name:
       - gpg # needed for trusting keys in apt
       - python3-apt # required by Ansible
+      - python3-debian # required for ansible.builtin.deb822_repository module
       - openssl # needed by ssl_config tasks
       - openvswitch-switch # needed for ovs-configuration
       - jq # needed to parse json-output of commands
