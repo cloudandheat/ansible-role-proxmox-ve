@@ -1,12 +1,11 @@
 # Conventions for the Proxmox VE Ansible role
 
 ## Compatibility
-This role is based on: https://github.com/lae/ansible-role-proxmox
-Our goal is to push all our modifications to this upstream, giving back to the community which made this role possible. 
-Therefore, we try to keep compatibility with the upstream role, as far as it does not negatively interfere with functionality or quality.
-In short, we either 
+This role was based on: https://github.com/lae/ansible-role-proxmox and the fork (https://github.com/cloudandheat/ansible-role-proxmox-ve)
+We original intended to
 - stay compatible with legacy inventory (variable) definitions for backwards-compatibility or
 - we introduce a versioning scheme for the default variables files, which then can be easily parsed for changes.
+With the decision to create a permanent fork, we might introduce breaking changes, on variable names etc.
 
 ## Structure
 Structuring a complex role is a necessity to keep flexibility, therefore supporting ease of development, robustness and quality. 
