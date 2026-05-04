@@ -126,9 +126,9 @@ Vagrant.configure("2") do |config|
 
         # Run provision.yml for the 'pve-test' group
         machine.vm.provision :ansible do |ansible|
-          ansible.inventory_path = "../vagrant/inventory_ceph_multi_node"
+          ansible.inventory_path = "./inventory_ceph_multi_node"
           ansible.limit = "pve-test"
-          ansible.playbook = "../vagrant/playbook.yaml"
+          ansible.playbook = "./playbook.yaml"
           #
           # For debugging the verbose-output can be increased here
           # ansible.verbose = "vvv"

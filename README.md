@@ -1,72 +1,87 @@
-# ansible-role-proxmox-ve
+# pve-engine
 
-Installs and configures **P**roxmox **V**irtual **E**nvironment 8.x/9.x on Debian servers with Ceph as storage backend.
+Installs and configures **P**roxmox **V**irtual **E**nvironment 8.x/9.x via Ansible
 
-This repository is a fork of https://github.com/lae/ansible-role-proxmox . The [original Readme](README_old.md) still exist, but was replaced by this one here, because of the amount of changes at this repository.
+This repository was originaly a fork of https://github.com/lae/ansible-role-proxmox 
 
-## Requirements
+**Notice: this repository is not maintained by the Proxmox Server Solutions GmbH.**
+**So they are not liable for any configuration issues based by the usage of this piece of software.**
 
-- Multi-node setup with Ceph storage:
-    - 3 (virtual-) machines with Debian 12 for PVE 8 or Debian 13 for PVE 9 
-    - at least 2 additional storage devices per node for the Ceph OSDs
-- Single-node setup with ZFS storage:
-    - 1 (virtual-) machine with Debian 12 for PVE 8 or Debian 13 for PVE 9 
-    - at least 2 additional storage devices for the ZFS storage
-- ssh-access to these nodes
-- internal network between the nodes for synchronization
+Support cases for Proxmox VE are bound to PVE subscription, available from your Proxmox Support Partner.
+So it is their responsibility, if they use this additional piece of software or not. (see [General Notice and Warnings](## General Notice and Warnings))
+They should also be aware of best practises for basic host configuration and if they are covered by
+this role or not.
 
-See for further information: https://www.proxmox.com/en/products/proxmox-virtual-environment/requirements
+**Proxmox VE is a trademark and the Copyright belongs to the Proxmox Server Solution Gmbh (www.proxmox.com)**
+This project is just a helper tool to configure it.
+
+We believe in Open Source Software and maintain it under the same license as Proxmox VE to ensure,
+longterm availability and compatibility for the usage.
+This project maybe accompanied with further projects, for the configuration of Proxmox VE.
+
+## General Notice and Usage Warning
+
+The main reason to maintain this repository as a permanent fork of the original role, was incompatibility due to the declarative approach.
+Major changes and refactoring was introduced, to maintain declarativeness whenever possible or useful.
+
+Declarative approach means the inventory is the single point of configuration: 
+**If you do not define the configuration items in the inventory/via variables for an existing ressource, they will be deleted on the next run.**
+
+This is particulary useful, if the role is used as **L**ife **C**ycle **M**anagemnt tool.
+If you do not intend to do so, be very careful and ensure data and configuration are not deleted.
+
+## Configuration Examples
+
+- Multi-node setup with Ceph storage for a single cluster (compare: tests/vagrant/inventory_ceph_multi_node)
+- Multi-node setup with Ceph storage for multiple cluster with RBD-Mirroring (compare: tests/vagrant/inventory_ceph_multi_node_mirror)
+- Single-node setup with ZFS storage  (compare: tests/vagrant/inventory_zfs_single_node)
 
 ## Install
 
-- install dependency
+- The role is currently only available from git (Ansible Galaxy is planned)
 
     ```bash
+    cd <working directory>
     mkdir roles
     cd roles
-    git clone https://github.com/cloudandheat/ansible-role-proxmox-ve.git
+    git clone https://gitlab.com/cloudandheat/pve/engine
+    # or if added to a existing git repository
+    git submodule add https://gitlab.com/cloudandheat/pve/engine
     ```
 
-- create inventory
+- Inventory management
 
-    As template the test-inventory `tests/vagrant/inventory` can be used and modified for an initial setup. There is additional documentation for the single config-parameters in the defaults `defaults/main.yml`.
+    As useful starting points for own modifications the test-inventory `tests/vagrant/inventory` are available
+    There is additional documentation for all available config-parameters in the defaults folder (`defaults/main.yml`).
 
-- create playbook, which uses the proxmox-ve role. For example with:
+- An example playbook can look like
 
     ```yaml
     ---
     - hosts:
         - pve-test
-    become: yes
-    any_errors_fatal: true
-    tasks:
-      - name: Install chrony
-        apt:
-          name: chrony
-          state: present
-          update_cache: yes
-        tags:
-          - chrony
-
-      - ansible.builtin.import_role:
+      become: yes
+      any_errors_fatal: true
+      tasks:
+        - ansible.builtin.import_role:
           name: proxmox-ve
-        tags:
-          - pve
+          tags:
+            - pve
     ```
 
-*IMPORTANT*: under `hosts` is a host-GROUP, not a single-host!
-
-## Utilizing Test setups
+## Utilizing Test Setups (Quick Start)
 
 ```
-VAGRANT_VAGRANTFILE=<szenario_name> vagrant up
+cd tests/vagrant/
+VAGRANT_VAGRANTFILE=<szenario_name e.g. Vagrantfile_* > vagrant up
 ```
+Longer Version see below.
 
-## Basic configuration
+## Basic Configuration
 
-The following sections are example references for configuration. Further details and more options can be read in the defaults `defaults/main.yml`. 
+The following sections are example references for configuration.
 
-### Debian version
+### Debian Version
 
 - for Debian 12 with PVE 8
 
@@ -74,15 +89,15 @@ The following sections are example references for configuration. Further details
     pve_debian_version: "bookworm"
     ```
 
-- for Debian 12 with PVE 9
+- for Debian 13 with PVE 9
 
     ```yaml
     pve_debian_version: "trixie"
     ```
 
-### Ceph storage for multi-node installation
+### Ceph Storage For Multi-node Installation
 
-#### General example
+#### General Example
 
 ```yaml
 pve_ceph_enhanced_enabled: true
@@ -98,6 +113,7 @@ pve_ceph_osds:
     device: "/dev/vdd"
     encrypted: true
 
+# using pve_pool to add a storage to a pve ressource pool
 pve_pools:
   - poolid: test_pool
     comment: "testing it"
@@ -137,15 +153,20 @@ pve_ceph_fs:
       pg_autoscale_mode: "on"
 ```
 
-#### Additional options
+#### Additional Options
 
 1. clear all OSDs
 
-    Set `pve_ceph_clear_all_osds: true` to wipe all OSD disk in the initial deploy process. This in necessary in case the disks come from an older or another Ceph. To avoid conflicts, with this flag the header of the disks will be deleted to ensure an clean Ceph installation. This in only done in an initial installation. When Ceph is already installed, the flag is ignored.
+    Set `pve_ceph_clear_all_osds: true` to wipe all OSD disk in the initial deploy process.
+    This in necessary in case the disks come from an older or another Ceph. 
+    To avoid conflicts, with this flag the header of the disks will be deleted to ensure an clean Ceph installation. 
+    This in only done in an initial installation. When Ceph is already installed, the flag is ignored.
 
 2. detect disks for OSDs
 
-    Instead of defining all disks manually, it is also possible to automatically detect all non-root disks and use them as OSDs for ceph. Add:
+    Instead of defining all disks manually, 
+    it is also possible to automatically detect all non-root disks
+    and use them as OSDs for ceph. Add:
     
     ```yaml
     pve_ceph_osd_detection:
@@ -160,15 +181,21 @@ pve_ceph_fs:
 
     The option `pve_ceph_osds` must be removed from the inventory in case the detection is enabled. 
 
-3. journal migration
+3. journal migration for rbd mirroring
 
-    The mirror-journal in now located in a separate ceph pool. It is possible to also migrate old journals into the new separeted structure, but this requires to set `pve_rbd_journal_migration` to true. This option is per default false, because the mirroring is canceled for the migration and triggered again after the change and so this migration should always be done on purpose when the admin is aware and prepared for this to avoid dataloss.
+    The mirror-journal in now located in a separate ceph pool. 
+    It is possible to also migrate old journals into the new separeted structure, 
+    but this requires to set `pve_rbd_journal_migration` to true. 
+    This option is false by default, because the mirroring is canceled for the migration and
+    triggered again after the change and so this migration should always be done on purpose 
+    when the admin is aware and prepared for this to avoid dataloss.
 
-### ZFS storage for single-node installation
+### ZFS Storage For Single-node Installation
 
 ```yaml
 pve_zfs_enabled: true
 
+# using pve_pool to add a storage to a pve ressource pool
 pve_pools:
   - poolid: test_pool
     comment: "testing it"
@@ -227,13 +254,13 @@ Per default this is disabled, so it has to be enabled manually.
 
 call `https://SERVER_IP:8006` in your browser
 
-As `SERVER_IP` the IP of each of the provisioned nodes can be used
+As `SERVER_IP` the IP of each of the provisioned nodes can be used.
 
 ### Login
 
-Initial login with user-name and password of the root-user of the Debian under the proxmox-ve.
+Initial login with user-name and password of the root-user of the PAM realm
 
-## Vagrant test setup
+## Vagrant Test Setup
 
 In order to make tests, especially with different Debian version, faster and more easy, there is a vagrant script available to deploy a local test environment of 3 virtual nodes with 3 OSDs per node and runs the ansible role within them.
 
@@ -335,7 +362,7 @@ Vagrant-actions:
 
     `vagrant destroy -f`
 
-- access webui of the deployed proxmox by entering `https://10.10.111.11:8006` in your local browser. This address is defined in the Vagrantfile and points directly to the first instance. There is a pre-defined test admin user. Select the Realm `Proxmox VE authentication server` with username `adminuser` and password `asdfasdf` to login as this user. If you rolled out the vagrant setup on a remove system, like a VM in the cloud, then you can use an ssh-tunnel like `ssh -L 8006:10.10.111.11:8006 <USER>@<REMOTE_ADDRESS>` and then access the dashboard via `https://127.0.0.1:8006`.
+- access webui of the deployed proxmox by entering `https://10.10.111.11:8006` in your local browser. This address is defined in the Vagrantfile and points directly to the first instance. There is a pre-defined test admin user. Select the Realm `Proxmox VE authentication server` with username `adminuser` and password `asdfasdf` to login as this user. If you rolled out the vagrant setup on a remote system, like a VM in the cloud, then you can use an ssh-tunnel like `ssh -L 8006:10.10.111.11:8006 <USER>@<REMOTE_ADDRESS>` and then access the dashboard via `https://127.0.0.1:8006`.
 
 ### Add Proxmox-Backup-Server for testing
 
@@ -354,7 +381,6 @@ HINT: The Vagrant-setup uses libvirt/KVM, so other hypervisor like Virtualbox do
 - Configure a basic setup within the PBS
 
     ```bash
-    mkdir /mnt/backups/teststore
     mkdir -p /mnt/backups/teststore
     proxmox-backup-manager datastore create teststore /mnt/backups/teststore
     proxmox-backup-manager user create backupuser@pbs --password asdfasdf
@@ -370,13 +396,23 @@ HINT: The Vagrant-setup uses libvirt/KVM, so other hypervisor like Virtualbox do
 
 ### Blank webui
 
-Problem is the workaround to remove the subscription warning banner. Can be fixed afterwards by 
+Problem is a common workaround to remove the subscription warning banner. Can be fixed afterwards by 
 running `apt install --reinstall pve-manager proxmox-widget-toolkit libjs-extjs pve-cluster` on all nodes
-or set in inventory `pve_remove_subscription_warning: false` to fix this right from the beginning
+or set in inventory `pve_remove_subscription_warning: false` to fix this right from the beginning.
+The setting is activated by default to avoid annoying banners during testing, and will become obsolete once we implement automated testing.
+For production setups we highly recommend to aquire Proxmox Subscriptions, with access to the enterprise repositories.
 
 ### hangs at `Query RBD pool config overrides`
 
-Reason is that it has not OSDs found. Either there are not OSDs available or the inventory is not correct. For example in libvirt instances, like in the vagrant test setup, the OSDs have as path `vda`, `vdb`, ... instead of `sda`, `sdb`, ...
+Reason is that it has not found a sufficent amount of OSDs. Either there are not OSDs available or the inventory is not correct. For example in libvirt instances, like in the vagrant test setup, the OSDs have as path `vda`, `vdb`, ... instead of `sda`, `sdb`, ...
+Also check if all OSDs are up and running, or maybe some has died due to insuffient RAM in a virtual testing environment.
+To check for the reason you can use:
+``` 
+systemctl status ceph-osd@<id>
+# if restart was attempted to often 
+systemctl reset-failed ceph-osd@<id>
+systemctl start ceph-osd@<id>
+```
 
 ### create mds failed because host-name begins with number
 
