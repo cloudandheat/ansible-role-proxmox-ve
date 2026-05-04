@@ -56,6 +56,12 @@ See for further information: https://www.proxmox.com/en/products/proxmox-virtual
 
 *IMPORTANT*: under `hosts` is a host-GROUP, not a single-host!
 
+## Utilizing Test setups
+
+```
+VAGRANT_VAGRANTFILE=<szenario_name> vagrant up
+```
+
 ## Basic configuration
 
 The following sections are example references for configuration. Further details and more options can be read in the defaults `defaults/main.yml`. 
