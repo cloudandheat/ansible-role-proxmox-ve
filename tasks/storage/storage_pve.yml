@@ -114,8 +114,8 @@
       when: "inventory_hostname == _init_node"
       tags: storage_pve_modify
       vars:
-        unsupported_params: "{{ ['authsupported', 'base', 'export', 'iscsiprovider', 'path', 'portal',
-                               'share', 'server', 'server2', 'target', 'thinpool', 'type', 'vgname', 'volume'] }}"
+        unsupported_params: "{{ ['authsupported', 'base', 'export', 'iscsiprovider', 'path', 'portal', 'share',
+                               'server', 'server2', 'target', 'thinpool', 'type', 'vgname', 'volume', 'zfs_type'] }}"
         # NOTICE: Different types (don't) support different params, this maps types to unsupported params for modification.
         # Extend this map's values if additional errors upon modification with params/attributes occur.
         unsup_params_map: "{{ {'btrfs': unsupported_params,

@@ -9,7 +9,7 @@
     name: "{{ storage_item.pool }}"
     state: present
     vdevs:
-      - type: mirror
+      - type: "{{ storage_item.zfs_type | default(pve_zfs_default_type) }}"
         disks: "{{ pve_zfs_disks }}"
     pool_properties:
       ashift: 12

@@ -206,6 +206,7 @@ pve_storages:
   - storage: zfs-storage
     type: zfspool
     pool: zfs-pool
+    zfs_type: stripe
     content:
       - rootdir
       - images
@@ -215,6 +216,13 @@ pve_zfs_disks:
   - /dev/vdc
   - /dev/vdd
 ```
+
+The zfs vdev topology defined via `pve_storages[].zfs_type` per default is `mirror`. Other supported types are `stripe`,
+`raidz`, `raidz1`, `raidz2` and `raidz3`.
+
+#### Known limitations
+
+Currently no zfs type RAID 10 is supported.
 
 ### Backup-server
 
