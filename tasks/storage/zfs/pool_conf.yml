@@ -12,7 +12,7 @@
       - type: "{{ storage_item.zfs_type | default(pve_zfs_default_type) }}"
         disks: "{{ pve_zfs_disks }}"
     pool_properties:
-      ashift: 12
+      ashift: "{{ storage_item.zfs_ashift | default(pve_zfs_default_ashift) }}"
   when: zpool_check.rc != 0
   tags: storage
 
