@@ -17,6 +17,30 @@ pve_domain: "example.test"
 # pve_no_log -> bool: Suppress some ansible log output of this role.
 pve_no_log: false
 
+# pve_ntp_chrony_sources_file -> FilePath: Path of the Chrony drop-in configuration file
+pve_ntp_chrony_sources_file: "/etc/chrony/sources.d/ansible-configured.sources"
+
+# pve_ntp_sources -> Optional[list[str|dict]]: NTP server to be configured as sources for Chrony
+# If a list element is str: The hostname or IP address of a NTP server. It will we configured as "server <address> iburst"
+# If a list element is dict: {
+#   'address' -> str: The hostname or IP address of a NTP server.
+#   'type' -> Optional[str]: (default='server') Type of Chrony time source, e.g. 'server' or 'pool' (see 'man chrony.conf').
+#   'options' -> Optional[str]: (default='iburst') Option string added to the source entry (see 'man chrony.conf').
+# }
+# Example simple list:
+# pve_ntp_sources:
+#   - "192.168.0.1"
+#   - "192.168.0.2"
+#   - "ntp1.example.com"
+#
+# Example mixed list:
+# pve_ntp_sources:
+#   - address: "192.168.0.1"
+#     options: "iburst port 1123"
+#   - "192.168.0.2"
+#   - address: "pool.ntp.org"
+#     type: "pool"
+
 # NOTE: for Debian 13 deb822 repositories are used, which require a different configuration
 pve_repository:
   uris: http://download.proxmox.com/debian/pve

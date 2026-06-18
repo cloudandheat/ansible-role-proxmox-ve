@@ -95,6 +95,21 @@ The following sections are example references for configuration.
     pve_debian_version: "trixie"
     ```
 
+### NTP sources for Chrony
+
+NTP sources for Chrony are only configured, if `pve_ntp_sources` is defined.
+
+Example:
+
+```yaml
+pve_ntp_sources:
+  - "192.168.0.1"
+  - "192.168.0.2"
+  - "ntp1.example.com"
+```
+
+Please refer to `defaults/main.yml` for more details.
+
 ### Ceph Storage For Multi-node Installation
 
 #### General Example

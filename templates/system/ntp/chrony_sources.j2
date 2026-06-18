@@ -1,0 +1,12 @@
+#################################################################################
+## This file is created and managed by pve-engine, task: 'system/ntp.yml'      ##
+## Do not change it in any other way, because any changes will be overwritten. ##
+#################################################################################
+
+{% for ntp_source in pve_ntp_sources -%}
+{% if ntp_source is string -%}
+server {{ ntp_source }} iburst
+{% else %}
+{{ ntp_source.type | default("server") }} {{ ntp_source.address }} {{ ntp_source.options | default("iburst") }}
+{% endif %}
+{% endfor %}
