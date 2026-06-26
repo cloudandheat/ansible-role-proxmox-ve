@@ -1,0 +1,15 @@
+#SPDX-License-Identifier: AGPL-3.0-only
+galaxy_info:
+  author: The pve-engine authors
+  description: Installs and manages Proxmox Virtual Environment (PVE) clusters
+
+  issue_tracker_url: https://gitlab.com/cloudandheat/pve/engine/-/work_items
+  license: AGPL-3.0-only
+  min_ansible_version: 2.21
+
+  galaxy_tags:
+    - pve-engine
+    - proxmox
+    - pve
+
+dependencies: []
