@@ -1,0 +1,24 @@
+- name: Manage chrony NTP sources (create)
+  tags: ntp
+  ansible.builtin.template:
+    src: "system/ntp/chrony_sources.j2"
+    dest: "{{ pve_ntp_chrony_sources_file }}"
+    owner: "root"
+    group: "root"
+    mode: "644"
+  when: "pve_ntp_sources is defined"
+  register: _pve_chrony_ntp_sources_create
+
+- name: Manage chrony NTP sources (remove)
+  ansible.builtin.file:
+    path: "{{ pve_ntp_chrony_sources_file }}"
+    state: absent
+  when: "pve_ntp_sources is not defined"
+  register: _pve_chrony_ntp_sources_remove
+
+# Why not a handler? Because nodes shall synchronize to NTP as soon as possible.
+- name: restart chrony
+  systemd:
+    name: chrony.service
+    state: restarted
+  when: _pve_chrony_ntp_sources_create.changed or _pve_chrony_ntp_sources_remove.changed

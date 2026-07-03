@@ -26,6 +26,11 @@
     - always
     - prepare
 
+- name: Configure NTP sources
+  ansible.builtin.import_tasks: system/ntp.yml
+  tags:
+    - ntp
+
 - name: Configure name resolution within the cluster
   ansible.builtin.import_tasks: system/name_resolution.yml
   tags:
