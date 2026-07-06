@@ -341,13 +341,5 @@ This role follows relatively strict rules on naming, styling and structure to ai
 8. ### Linting
    - Ansible linting is always required!
    - Only commits without any linting warnings or errors will be accepted.
-   - For linting the ansible-lint executable is used.
-   - Most linting rules are managed through a '.ansible-lint' file in the repository root directory.
-   - Current '.ansible-lint' content:
-   ```
-   ---
-    skip_list:
-    - yaml[comments]: Comments don't need to follow intendation. Improves readability and prepares a potential later use of mkdocs.
-    - name[missing]: (DEBUG) All tasks must be named, temporarily disabled for better readability when debugging.
-    - no-handler: This rule checks for the correct handling of changes to results or conditions. The recommended approach is to use notify and move tasks to handlers.
-   ```
+   - For linting the `ansible-lint` and `yamllint` executables are used.
+   - The corresponding linting rules are found in the [.ansible-lint.yml] and [.yamllint.yml] files in the repository root directory.

@@ -1,0 +1,11 @@
+---
+# Production-ready level software is the goal here
+profile: production
+
+skip_list:
+  # While it improves readability, line length is ignored for practicability at the moment
+  - yaml[line-length]
+  # Comments don't need to follow intendation. Improves readability and prepares a potential later use of mkdocs.
+  - yaml[comments]
+  # This rule checks for the correct handling of changes to results or conditions. The recommended approach is to use notify and move tasks to handlers.
+  - no-handler

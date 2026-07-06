@@ -1,23 +1,34 @@
 ---
 extends: default
 rules:
+  # Line length is ignored for practicability at the moment
   line-length:
-    max: 120
+    max: 160
+    level: warning
   braces:
+    # ansible-lint default
     max-spaces-inside: 1
     level: error
   brackets:
+    # Consistent with braces
     max-spaces-inside: 1
     level: error
   comments:
+    # ansible-lint default
     min-spaces-from-content: 1
+  # Improves readability and prepares a potential later use of mkdocs
   comments-indentation: false
   octal-values:
+    # ansible-lint default
     forbid-implicit-octal: true
+    # ansible-lint default
     forbid-explicit-octal: true
   truthy:
     allowed-values:
-      - 'true'
-      - 'yes'
-      - 'false'
-      - 'no'
+      - "true"
+      - "false"
+
+# Ignore files in the virtual environments
+ignore:
+  - .venv
+  - .env*

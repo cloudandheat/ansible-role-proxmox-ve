@@ -1,5 +1,0 @@
----
-skip_list:
-  - yaml[comments]
-  - name[missing]
-  - no-handler
