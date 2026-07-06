@@ -1,0 +1,23 @@
+---
+stages:
+  - lint
+
+ansible-lint:
+  stage: lint
+  image: python:3.14-alpine3.24
+  before_script:
+    - pip install ansible-lint
+  script:
+    - ansible-lint --version
+    - ansible-lint .
+  allow_failure: false
+
+yaml-lint:
+  stage: lint
+  image: python:3.14-alpine3.24
+  before_script:
+    - pip install yamllint
+  script:
+    - yamllint --version
+    - yamllint .
+  allow_failure: false
