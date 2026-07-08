@@ -1,9 +1,7 @@
 ---
-
 - name: Check if the active ceph manager service is available
   run_once: true
   block:
-
     - name: Collect the ceph status data
       ansible.builtin.command:
         cmd: "ceph mgr stat --format json"
@@ -15,12 +13,12 @@
         _ceph_mgr_available: "{{ _ceph_status_raw.stdout | from_json | json_query('available') }}"
         _ceph_mgr_active_name: "{{ _ceph_status_raw.stdout | from_json | json_query('active_name') }}"
       vars:
-        jquery: 'available'
+        jquery: "available"
 
-    - name: Check if the manager services are available, post restart after upgrade to version - {{ chup_new_ceph_version_name }}
+    - name: Check if the manager services are available, post restart after upgrade to version - {{
+        chup_new_ceph_version_name }}
       ansible.builtin.assert:
         that:
           - "_ceph_mgr_available is true"
         fail_msg: "Unable to find active ceph-mgr service after restart"
         success_msg: "Passed check after ceph-mgr update, new active ceph-mgr service: {{ _ceph_mgr_active_name }}"
-

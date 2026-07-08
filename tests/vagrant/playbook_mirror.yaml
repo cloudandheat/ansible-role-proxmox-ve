@@ -1,21 +1,22 @@
 ---
-- hosts:
+- name: Prepare two Vagrant instances
+  hosts:
     - pve1-test
     - pve2-test
   remote_user: vagrant
-  become: yes
+  become: true
   any_errors_fatal: true
   tasks:
-
     - name: Install chrony
-      apt:
+      ansible.builtin.apt:
         name: chrony
         state: present
-        update_cache: yes
+        update_cache: true
       tags:
         - chrony
 
-    - ansible.builtin.import_role:
+    - name: Import proxmox-ve role
+      ansible.builtin.import_role:
         name: proxmox-ve
       tags:
         - pve

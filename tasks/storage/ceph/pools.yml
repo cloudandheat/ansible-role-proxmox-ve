@@ -7,7 +7,8 @@
         - name: Normalize Ceph pools parameter into list of dicts from list
           ansible.builtin.set_fact:
             # transform from ["value",…, {<setting>:<value>,…}] into [{'name':<value>,…, <setting>: <value>,…}]
-            pve_ceph_pools: "{{ pve_ceph_pools | select('mapping') + pve_ceph_pools | reject('mapping') | json_query('[].{name: @}') }}"
+            pve_ceph_pools: "{{ pve_ceph_pools | select('mapping') + pve_ceph_pools | reject('mapping') | json_query('[].{name:
+              @}') }}"
           when:
             - "pve_ceph_pools is iterable"
             - "pve_ceph_pools is not mapping"
@@ -16,7 +17,8 @@
         - name: Normalize Ceph pools parameter into list of dicts from mapping
           ansible.builtin.set_fact:
             # transform from {<name>:{<setting>: <value>, …}} into [{'name':…, <setting>: <value>, …}]
-            pve_ceph_pools: "{{ pve_ceph_pools | dict2items | json_query('[].merge({name: key}, not_null(value, {name: key}))') }}"
+            pve_ceph_pools: "{{ pve_ceph_pools | dict2items | json_query('[].merge({name: key}, not_null(value, {name: key}))')
+              }}"
           when: "pve_ceph_pools is mapping"
 
         - name: Normalize Ceph pools parameter into empty list if none
@@ -50,15 +52,14 @@
 
         - name: Extract CephFS pool names
           ansible.builtin.set_fact:
-            _ceph_fs_pools:
-              "{{ _ceph_fs_pools | default([]) + item.data_pools + [item.metadata_pool] }}"
+            _ceph_fs_pools: "{{ _ceph_fs_pools | default([]) + item.data_pools + [item.metadata_pool] }}"
           loop: "{{ _ceph_fs_ls_raw.stdout | from_json }}"
 
     - name: Create Ceph pools
       block:
         - name: Create missing Ceph pools
-          ansible.builtin.command:
-            "pveceph pool create {{ item.name }} {{ item | dict2args(bool2int=true, reject_keys=unsupported_args) }}"
+          ansible.builtin.command: "pveceph pool create {{ item.name }} {{ item | dict2args(bool2int=true, reject_keys=unsupported_args)
+            }}"
           vars:
             unsupported_args: "{{ ['name', 'quota', 'config'] }}"
           register: _pveceph_pool_create_raw
@@ -70,8 +71,8 @@
     - name: Modify Ceph pools
       block:
         - name: Set Ceph pool settings
-          ansible.builtin.command:
-            "pveceph pool set {{ item.name }} {{ item | dict2args(bool2int=true, reject_keys=unsupported_args) }}"
+          ansible.builtin.command: "pveceph pool set {{ item.name }} {{ item | dict2args(bool2int=true, reject_keys=unsupported_args)
+            }}"
           vars:
             unsupported_args: "{{ ['name', 'quota', 'add_storages', 'erasure-coding', 'config'] }}"
           loop: "{{ pve_ceph_pools }}"
@@ -79,7 +80,8 @@
           changed_when: true
 
         - name: Set Ceph pool quotas
-          ansible.builtin.command: "ceph osd pool set-quota {{ item.name }} max_bytes {{ (quota | float * 1073741824) | round | int }}"
+          ansible.builtin.command: "ceph osd pool set-quota {{ item.name }} max_bytes {{ (quota | float * 1073741824) | round
+            | int }}"
           vars:
             quota: "{{ item.quota | default('0.0') }}"
           loop: "{{ pve_ceph_pools }}"
@@ -98,10 +100,9 @@
                   # transform {'name': <pool>, 'config': [{'name': <conf name>, 'value': <conf value>}, …, {<conf name>: <conf value>}, …]}
                   # into [{'pool': <pool>, 'name': <conf name>, 'value': <conf value>}, …]
                   ansible.builtin.set_fact:
-                    _pve_ceph_pools_config: "{{ _pve_ceph_pools_config
-                                            + (conf_maps_w_n_v | map('combine', {'pool': item.name}))
-                                            + (conf_maps_other | map('dict2items', key_name='name')
-                                              | flatten | map('combine', {'pool': item.name})) }}"
+                    _pve_ceph_pools_config: "{{ _pve_ceph_pools_config + (conf_maps_w_n_v | map('combine', {'pool': item.name}))
+                      + (conf_maps_other | map('dict2items', key_name='name') | flatten | map('combine', {'pool': item.name}))
+                      }}"
                   vars:
                     conf_maps: "{{ item.config | select('mapping') }}"
                     conf_maps_w_n_v: "{{ conf_maps | selectattr('name', 'defined') | selectattr('value', 'defined') }}"
@@ -113,8 +114,8 @@
                   # transform {'name': <pool>, 'config': {<conf name>: <conf value>, …}}
                   # into [{'pool': <pool>, 'name': <conf name>, 'value': <conf value>}, …]
                   ansible.builtin.set_fact:
-                    _pve_ceph_pools_config:
-                      "{{ _pve_ceph_pools_config + item.config | dict2items(key_name='name') | map('combine', {'pool': item.name}) }}"
+                    _pve_ceph_pools_config: "{{ _pve_ceph_pools_config + item.config | dict2items(key_name='name') | map('combine',
+                      {'pool': item.name}) }}"
                   loop: "{{ pve_ceph_pools | selectattr('config', 'defined') }}"
                   when: "item.config is mapping"
 
@@ -133,8 +134,8 @@
                 - name: Extract RBD pool config overrides
                   ansible.builtin.set_fact:
                     # _rbd_pool_configs: [{'pool': <pool>, 'name': <conf name>, 'value': <conf value>, 'source': 'pool'}, …]
-                    _rbd_pool_configs: "{{ _rbd_pool_configs
-                                        + item.stdout | from_json | selectattr('source', '==', 'pool') | map('combine', {'pool': item.item}) }}"
+                    _rbd_pool_configs: "{{ _rbd_pool_configs + item.stdout | from_json | selectattr('source', '==', 'pool')
+                      | map('combine', {'pool': item.item}) }}"
                   loop: "{{ _rbd_pool_config_ls_raws.results }}"
                   loop_control:
                     label: "{{ item.item }}"
@@ -146,7 +147,8 @@
                   vars:
                     curr_pool_conf: "{{ _rbd_pool_configs | selectattr('pool', '==', item.pool) }}"
                   loop: "{{ _pve_ceph_pools_config }}"
-                  when: "curr_pool_conf | selectattr('name', '==', item.name) | selectattr('value', '==', (item.value | string)) | length == 0"
+                  when: "curr_pool_conf | selectattr('name', '==', item.name) | selectattr('value', '==', (item.value | string))
+                    | length == 0"
                   changed_when: true
 
             - name: Remove Ceph RBD pool config overrides
@@ -165,16 +167,15 @@
         # TODO pveceph deletes actively mirrored pools, but controlled removal would be more preferable
         - name: Collect declared Ceph pools
           ansible.builtin.set_fact:
-            _ceph_declared_pools:
-              "{{ _ceph_declared_pools | default([]) + (pve_ceph_pools | map(attribute='name'))
-              + _ceph_fs_pools | default([]) + pve_ceph_default_pools }}"
+            _ceph_declared_pools: "{{ _ceph_declared_pools | default([]) + (pve_ceph_pools | map(attribute='name')) + _ceph_fs_pools
+              | default([]) + pve_ceph_default_pools }}"
 
         - name: Collect non-declared Ceph pools
           ansible.builtin.set_fact:
             _ceph_undeclared_pools: "{{ _ceph_pools | difference(_ceph_declared_pools) }}"
 
         - name: Destroy undeclared Ceph pools
-          ansible.builtin.command:
-            "pveceph pool destroy {{ item }} --remove_storages 1 {{ pve_ceph_pool_force_destroy | ternary('--force 1', '') }}"
+          ansible.builtin.command: "pveceph pool destroy {{ item }} --remove_storages 1 {{ pve_ceph_pool_force_destroy | ternary('--force
+            1', '') }}"
           loop: "{{ _ceph_undeclared_pools | default([]) }}"
           changed_when: true

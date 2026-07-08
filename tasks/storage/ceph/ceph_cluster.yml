@@ -54,7 +54,8 @@
             that:
               - "pve_ceph_mon_nodes | length is odd"
               - "pve_ceph_mon_nodes | length > 2"
-            msg: "pve_ceph_mon_nodes defines an unsuitable number (not odd and >=3) of ceph monitor nodes for the cluster {{ pve_group }}."
+            msg: "pve_ceph_mon_nodes defines an unsuitable number (not odd and >=3) of ceph monitor nodes for the cluster
+              {{ pve_group }}."
 
         - name: Ensure we have at least two Ceph manager nodes declared
           ansible.builtin.assert:
@@ -72,8 +73,8 @@
 
         - name: Extract Ceph cluster fsid
           ansible.builtin.set_fact:
-            _ceph_cluster_id:
-              "{{ _ceph_cluster_status_raw.stdout | default('{}', true) | from_json | json_query('fsid') | default(false, true) }}"
+            _ceph_cluster_id: "{{ _ceph_cluster_status_raw.stdout | default('{}', true) | from_json | json_query('fsid') |
+              default(false, true) }}"
 
         - name: Display found Cluster IDs
           ansible.builtin.debug:
@@ -81,9 +82,8 @@
 
         - name: Appoint default Ceph cluster initiator host
           ansible.builtin.set_fact:
-            _ceph_init_node: "{{ pve_cluster_initiator_host
-                               | default(groups[pve_group] | first, true)
-                               | default(inventory_hostname, true) }}"
+            _ceph_init_node: "{{ pve_cluster_initiator_host | default(groups[pve_group] | first, true) | default(inventory_hostname,
+              true) }}"
 
         - name: Ensure a monitor node is Ceph cluster initiator host
           ansible.builtin.set_fact:
@@ -219,17 +219,18 @@
 
             - name: Collect active monitor addresses
               ansible.builtin.set_fact:
-                _existing_mon_addrs: "{{ _existing_mon_addrs | default([]) + [ceph_pub_ip | ansible.utils.ipaddr('address')] }}"
+                _existing_mon_addrs: "{{ _existing_mon_addrs | default([]) + [ceph_pub_ip | ansible.utils.ipaddr('address')]
+                  }}"
               vars:
-                all_ip_addrs: "{{ hostvars[_shrt2invname[item]].ansible_all_ipv4_addresses
-                                + hostvars[_shrt2invname[item]].ansible_all_ipv6_addresses }}"
+                all_ip_addrs: "{{ hostvars[_shrt2invname[item]].ansible_all_ipv4_addresses + hostvars[_shrt2invname[item]].ansible_all_ipv6_addresses
+                  }}"
                 ceph_pub_net: "{{ hostvars[_shrt2invname[item]].pve_ceph_network }}"
                 # Filter all ip addresses of host if they are in ceph_pub_net
                 ceph_pub_ip: "{{ all_ip_addrs | ansible.utils.ipaddr(ceph_pub_net) | first }}"
               loop: "{{ _ceph_known_mons | difference(_ceph_missing_mons) }}"
 
             - name: Remove missing monitor addresses from PVE Ceph conf file
-              ansible.builtin.ini_file:
+              community.general.ini_file:
                 path: "/etc/pve/ceph.conf"
                 section: "global"
                 option: "mon_host"
@@ -237,7 +238,7 @@
                 mode: "0640"
 
             - name: Remove missing monitors mon section from PVE Ceph conf
-              ansible.builtin.ini_file:
+              community.general.ini_file:
                 path: "/etc/pve/ceph.conf"
                 section: "mon.{{ item }}"
                 state: absent
@@ -257,7 +258,7 @@
               args:
                 creates: "/var/lib/ceph/mon/ceph-{{ ansible_hostname }}/"
               register: _pveceph_mon_create
-              until: "_pveceph_mon_create.rc not in [255, 4]" #rc 255 = "Could not connect to ceph cluster despite configured monitors", rc 4 == timeout
+              until: "_pveceph_mon_create.rc not in [255, 4]" # rc 255 = "Could not connect to ceph cluster despite configured monitors", rc 4 == timeout
               throttle: 1
               retries: 5
               delay: 5

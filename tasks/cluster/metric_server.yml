@@ -1,5 +1,4 @@
 ---
-
 - name: Add metric servers
   proxmox_metric_server:
     id: "{{ item.id | default(omit) }}"

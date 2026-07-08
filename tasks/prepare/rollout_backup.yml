@@ -1,3 +1,4 @@
+---
 - name: Determine if rollout backup is enabled
   ansible.builtin.set_fact:
     _run_rollout_backup: "{{ pve_rollout_backup.enabled | default(false) | bool }}"
@@ -17,7 +18,6 @@
       ansible.builtin.debug:
         msg: "Skipping rollout backup — vzdump not present (initial bootstrap run)."
 
-
     - name: Determine storage type
       ansible.builtin.set_fact:
         _selected_storage_type: >-
@@ -35,8 +35,8 @@
     - name: Validate storage exists (except local)
       ansible.builtin.assert:
         that:
-          - pve_rollout_backup.storage == 'local'
-            or pve_rollout_backup.storage in (pve_storages | map(attribute='storage') | list)
+          - pve_rollout_backup.storage == 'local' or pve_rollout_backup.storage in (pve_storages |
+            map(attribute='storage') | list)
         fail_msg: "Selected storage is not defined."
 
     - name: Validate storage type (must be pbs or local)
@@ -50,7 +50,6 @@
         that:
           - pve_rollout_backup.mode in ['snapshot', 'suspend', 'stop']
         fail_msg: "Invalid backup mode."
-
 
     - name: Run vzdump for all VMs
       ansible.builtin.command: >

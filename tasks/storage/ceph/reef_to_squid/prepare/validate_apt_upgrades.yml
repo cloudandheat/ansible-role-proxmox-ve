@@ -2,7 +2,7 @@
 - name: Try to upgrade the node instance again, to validate if we are on the latest version.
   ansible.builtin.apt:
     upgrade: dist
-    update_cache: yes
+    update_cache: true
 
 - name: Check if a reboot is required after the potential os upgrade
   ansible.builtin.stat:
@@ -15,7 +15,7 @@
 
 - name: Fail if a reboot is required -> we should be on latest version, due to first os-upgrade
   ansible.builtin.assert:
-    that: 
+    that:
       - "_reboot_required_2 is false"
     fail_msg: |
       Reboot seems still to be required. This should not happen.

@@ -7,7 +7,8 @@
         - name: Normalize Ceph OSDs parameter into list of dicts from list
           ansible.builtin.set_fact:
             # transform from ["value",…, {<setting>:<value>,…}] into [{'device':<value>,…, <setting>: <value>,…}]
-            pve_ceph_osds: "{{ pve_ceph_osds | select('mapping') + pve_ceph_osds | reject('mapping') | json_query('[].{device: @}') }}"
+            pve_ceph_osds: "{{ pve_ceph_osds | select('mapping') + pve_ceph_osds | reject('mapping') | json_query('[].{device:
+              @}') }}"
           when:
             - "pve_ceph_osds is iterable"
             - "pve_ceph_osds is not mapping"
@@ -16,7 +17,8 @@
         - name: Normalize Ceph OSDs parameter into list of dicts from mapping
           ansible.builtin.set_fact:
             # transform from {<device>:{<setting>: <value>, …}} into [{'device':…, <setting>: <value>, …}]
-            pve_ceph_osds: "{{ pve_ceph_osds | dict2items | json_query('[].merge({device: key}, not_null(value, {device: key}))') }}"
+            pve_ceph_osds: "{{ pve_ceph_osds | dict2items | json_query('[].merge({device: key}, not_null(value, {device: key}))')
+              }}"
           when: "pve_ceph_osds is mapping"
 
         - name: Normalize Ceph OSDs parameter into empty list if none
@@ -26,8 +28,8 @@
 
         - name: Normalize OSD device path if device id was given
           ansible.builtin.set_fact:
-            pve_ceph_osds: "{{ pve_ceph_osds | rejectattr('id', 'defined')
-                             + pve_ceph_osds | selectattr('id', 'defined') | json_query(query_str) }}"
+            pve_ceph_osds: "{{ pve_ceph_osds | rejectattr('id', 'defined') + pve_ceph_osds | selectattr('id', 'defined') |
+              json_query(query_str) }}"
           vars:
             query_str: "[].merge(@, {device: join('', ['/dev/disk/by-id/', to_string(id)])})"
           when: "pve_ceph_osds | selectattr('id', 'defined') | length > 0"
@@ -56,15 +58,13 @@
             follow: false
           register: _pve_ceph_osd_stat
           loop: "{{ pve_ceph_osds }}"
-          when: "item.hosts is not defined
-                or inventory_hostname in (item.hosts | list)
-                or inventory_hostname_short in (item.hosts | list)
-                or item.hosts == 'all'"
+          when: "item.hosts is not defined or inventory_hostname in (item.hosts | list) or inventory_hostname_short in (item.hosts
+            | list) or item.hosts == 'all'"
 
         - name: Create normalized OSD device path map for each host
           ansible.builtin.set_fact:
-            _ceph_osd_devices:
-              "{{ _ceph_osd_devices | combine({item.stat.path: (item.stat.lnk_source | default(item.stat.path, true))}) }}"
+            _ceph_osd_devices: "{{ _ceph_osd_devices | combine({item.stat.path: (item.stat.lnk_source | default(item.stat.path,
+              true))}) }}"
           loop: "{{ _pve_ceph_osd_stat.results }}"
           loop_control:
             label: "{{ item.item }}"
@@ -92,8 +92,8 @@
             - name: Create device to OSD ID map for each host
               ansible.builtin.set_fact:
                 # build a map: <device path> => <none or osd id>
-                _ceph_device_osd_id: "{{ _ceph_device_osd_id |
-                  combine({item.item.key: (item.stdout | from_json | json_query('keys(@)[0]'))}) }}"
+                _ceph_device_osd_id: "{{ _ceph_device_osd_id | combine({item.item.key: (item.stdout | from_json | json_query('keys(@)[0]'))})
+                  }}"
               loop: "{{ _ceph_lvm_list_device_raw.results }}"
               loop_control:
                 label: "{{ item.item }}"
@@ -102,8 +102,8 @@
 - name: Create Ceph OSDs
   block:
     - name: Create declared OSDs
-      ansible.builtin.command:
-        "pveceph osd create {{ item.device }} {{ item | dict2args(bool2int=true, reject_keys=['id', 'device', 'hosts']) }} "
+      ansible.builtin.command: "pveceph osd create {{ item.device }} {{ item | dict2args(bool2int=true, reject_keys=['id',
+        'device', 'hosts']) }} "
       register: _pveceph_osd_create_raws
       loop: "{{ pve_ceph_osds }}"
       until: "_pveceph_osd_create_raws.rc != 4" # rc == 4 == timeout
@@ -123,8 +123,10 @@
       vars:
         query_osds: "nodes[?type == 'osd']"
         host_osds: "{{ _ceph_osd_tree_from_raw.stdout | from_json | json_query(query_osds) | length }}"
-        existing_osds: "{{ _ceph_device_osd_id | dict2items | map(attribute='value') | select('!=', none) | unique | length }}"
-        created_osds: "{{ _pveceph_osd_create_raws.results | selectattr('changed', '==', true) | selectattr('rc', '==', 0) | length }}"
+        existing_osds: "{{ _ceph_device_osd_id | dict2items | map(attribute='value') | select('!=', none) | unique | length
+          }}"
+        created_osds: "{{ _pveceph_osd_create_raws.results | selectattr('changed', '==', true) | selectattr('rc', '==', 0)
+          | length }}"
       until:
         - "_ceph_osd_tree_from_raw.rc == 0"
         - "(host_osds | int - existing_osds | int) >= (created_osds | int)"
@@ -147,9 +149,8 @@
         - name: Create map of known LVM OSDs and their block devices
           ansible.builtin.set_fact:
             # map <osd id> => [devices (incl. block, db, wal)]
-            _ceph_lvm_osd_device:
-              "{{ _ceph_lvm_osd_device | default({}) |
-              combine({(item.key | int): (item.value | map('json_query', 'devices[]') | flatten)}) }}"
+            _ceph_lvm_osd_device: "{{ _ceph_lvm_osd_device | default({}) | combine({(item.key | int): (item.value | map('json_query',
+              'devices[]') | flatten)}) }}"
           loop: "{{ _ceph_lvm_list | dict2items }}"
           loop_control:
             label: "{{ {(item.key | int): (item.value | map('json_query', 'devices[]') | flatten)} }}"
@@ -166,8 +167,8 @@
         - name: Create device to OSD ID map for each host
           ansible.builtin.set_fact:
             # build a map: <device path> => <none or osd id>
-            _ceph_device_osd_id: "{{ _ceph_device_osd_id |
-              combine({item.item.key: (item.stdout | from_json | json_query('keys(@)[0]'))}) }}" # TODO use .keys()
+            _ceph_device_osd_id: "{{ _ceph_device_osd_id | combine({item.item.key: (item.stdout | from_json | json_query('keys(@)[0]'))})
+              }}" # TODO use .keys()
           loop: "{{ _ceph_lvm_list_device_raw.results }}"
           loop_control:
             label: "{{ item.item }}"
@@ -208,8 +209,8 @@
 
     - name: Create list of OSD LUKS volumes and keys
       ansible.builtin.set_fact:
-        _ceph_config_keys_luks:
-          "{{ (_ceph_config_keys_luks | default([])) + [{'luks_volume': item.key, 'luks_key': item.value}] }}"
+        _ceph_config_keys_luks: "{{ (_ceph_config_keys_luks | default([])) + [{'luks_volume': item.key, 'luks_key': item.value}]
+          }}"
       loop: "{{ _ceph_config_key_dump.stdout | from_json | dict2items }}"
       loop_control:
         label: "{{ item.key }}"
@@ -259,8 +260,8 @@
 
         - name: Collect stray OSDs for removal
           ansible.builtin.set_fact:
-            _ceph_undeclared_osds:
-              "{{ _ceph_undeclared_osds + (_ceph_osd_tree_raw.stdout | from_json | json_query(query_str) | default([])) }}"
+            _ceph_undeclared_osds: "{{ _ceph_undeclared_osds + (_ceph_osd_tree_raw.stdout | from_json | json_query(query_str)
+              | default([])) }}"
           vars:
             query_str: "stray[?type=='osd'].id"
           when:
@@ -277,8 +278,8 @@
 
         - name: Collect out OSDs for removal
           ansible.builtin.set_fact:
-            _ceph_undeclared_osds:
-              "{{ _ceph_undeclared_osds + (_ceph_osd_tree_raw.stdout | from_json | json_query(query_str) | default([])) }}"
+            _ceph_undeclared_osds: "{{ _ceph_undeclared_osds + (_ceph_osd_tree_raw.stdout | from_json | json_query(query_str)
+              | default([])) }}"
           vars:
             query_str: "nodes[?type=='osd'].id"
           when: "'out' in pve_ceph_cleanup_osd_status"
@@ -292,8 +293,8 @@
 
         - name: Collect down OSDs for removal
           ansible.builtin.set_fact:
-            _ceph_undeclared_osds:
-              "{{ _ceph_undeclared_osds + (_ceph_osd_tree_raw.stdout | from_json | json_query(query_str) | default([])) }}"
+            _ceph_undeclared_osds: "{{ _ceph_undeclared_osds + (_ceph_osd_tree_raw.stdout | from_json | json_query(query_str)
+              | default([])) }}"
           vars:
             query_str: "nodes[?type=='osd'].id"
           when: "'down' in pve_ceph_cleanup_osd_status"
@@ -310,11 +311,11 @@
           block:
             - name: Normalize custom list of OSDs
               ansible.builtin.set_fact:
-                pve_ceph_osds_destroy:
-                  "{{ pve_ceph_osds_destroy | default([]) | unique |
-                  map('regex_replace', '^osd\\.', '') | map('int') | list }}"
+                pve_ceph_osds_destroy: "{{ pve_ceph_osds_destroy | default([]) | unique | map('regex_replace', '^osd\\.',
+                  '') | map('int') | list }}"
 
-            - ansible.builtin.debug:
+            - name: Display Ceph OSD ids to destroy
+              ansible.builtin.debug:
                 msg: "Ceph OSD ids to destroy: {{ pve_ceph_osds_destroy | default('UNDEF') }}"
 
             - name: List OSDs on each host
@@ -337,15 +338,15 @@
 
         - name: Normalize list of OSD ids
           ansible.builtin.set_fact:
-            _ceph_undeclared_osds:
-              "{{ _ceph_undeclared_osds | unique | map('regex_replace', '^osd\\.', '') | map('int') | list }}"
+            _ceph_undeclared_osds: "{{ _ceph_undeclared_osds | unique | map('regex_replace', '^osd\\.', '') | map('int') |
+              list }}"
 
         - name: Mark OSDs out
           ansible.builtin.command: "ceph osd out {{ item }}"
           loop: "{{ _ceph_undeclared_osds }}"
           changed_when: true
 
-        #TODO wait here for possible object migrations between OSDs to complete
+        # TODO wait here for possible object migrations between OSDs to complete
 
         - name: Ensure services of undeclared OSDs are stopped
           ansible.builtin.systemd:
@@ -369,7 +370,7 @@
           ansible.builtin.command: "ceph osd down {{ item }}"
           register: _ceph_osds_down_raw
           loop: "{{ _ceph_undeclared_osds }}"
-          #changed_when: "_ceph_osds_down_raw | json_query('results[*].stdout') | map('length','>',0) | reduce('lambda x,y: x or y', false)" #TODO
+          # changed_when: "_ceph_osds_down_raw | json_query('results[*].stdout') | map('length','>',0) | reduce('lambda x,y: x or y', false)" #TODO
           changed_when: true
 
         - name: PVE Destroy OSDs
@@ -411,7 +412,8 @@
           failed_when: "_ceph_lvm_zap_osd.rc not in [0, 1]" # rc==1 --> RuntimeError: Unable to find any LV for zapping OSD
 
         - name: Find and remove leftover lvm-systemd-files
-          ansible.builtin.command: "find '/etc/systemd/system/multi-user.target.wants/' -name 'ceph-volume@lvm-{{ item }}-*' -delete"
+          ansible.builtin.command: "find '/etc/systemd/system/multi-user.target.wants/' -name 'ceph-volume@lvm-{{ item }}-*'
+            -delete"
           register: _ceph_systemd_service_removal
           loop: "{{ _ceph_undeclared_osds }}"
           changed_when: true
@@ -452,12 +454,11 @@
                 label: "{{ item.item }} => {{ item.stdout }}"
 
         - name: Wipe former OSD block devices
-          ansible.builtin.command:
-            "dd if=/dev/zero of={{ item }} bs=512 count={{ sectors }}"
+          ansible.builtin.command: "dd if=/dev/zero of={{ item }} bs=512 count={{ sectors }}"
           loop: "{{ _ceph_wipe_devices }}"
           vars:
-            sectors: "{{ (pve_ceph_wipe_destroyed_osds is integer) |
-                      ternary(min(pve_ceph_wipe_destroyed_osds, _blockdev_getsize[item]), _blockdev_getsize[item]) }}"
+            sectors: "{{ (pve_ceph_wipe_destroyed_osds is integer) | ternary(min(pve_ceph_wipe_destroyed_osds, _blockdev_getsize[item]),
+              _blockdev_getsize[item]) }}"
           when:
             - "pve_ceph_wipe_destroyed_osds is not false"
             - "_ceph_wipe_devices is defined"

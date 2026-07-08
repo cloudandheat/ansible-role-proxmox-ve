@@ -11,7 +11,7 @@ pve_manage_etc_hosts: true
 # pve_hostname_rename -> Optional[str]: (Declarative) If and what hosts should get renamed to.
 # Examples: "{{ ansible_hostname }}.{{ pve_domain }}" to append <pve_domain> (RECOMMENDED!)
 #          "{{ inventory_hostname }}" to reset the hostname to the inventory declared one.
-pve_hostname_rename: null
+pve_hostname_rename:
 # pve_domain -> str: (Declarative) Domain in which the cluster hosts in hosts file should be reachable.
 pve_domain: "example.test"
 # pve_no_log -> bool: Suppress some ansible log output of this role.
@@ -30,11 +30,11 @@ pve_enable_enterprise_repository: false
 # pve_pveproxy_defaults -> Optional dict={
 # <key> -> str="viablae config key" : <value> -> str="viable config value"
 # }: (Declarative)
-pve_pveproxy_defaults: null
+pve_pveproxy_defaults:
 # pve_ssl_private_key -> Optional[str]: (Declarative) Content of HTTPS private key for PVE WebUI.
-pve_ssl_private_key: null
+pve_ssl_private_key:
 # pve_ssl_certificate -> Optional[str]: (Declarative) Content of HTTPS certificate for PVE WebUI.
-pve_ssl_certificate: null
+pve_ssl_certificate:
 # pve_disable_tls_1_2 -> bool: If TLS 1.2 should be disabled for HTTPS to the WebUI.
 pve_disable_tls_1_2: false
 # pve_disable_tls_1_3 -> bool: If TLS 1.3 should be disabled for HTTPS to the WebUI.
@@ -43,7 +43,6 @@ pve_disable_tls_1_3: false
 dhparam_file: "/etc/ssl/dhparams.pem"
 # dhparam_size -> int=range(2048,inf): Size of Diffie-Hellmann parameters in Bits. NOTE: Sizes > 2048 can take a long time to generate.
 dhparam_size: 4096
-
 
 ### SSH settings for intra cluster communication
 # pve_manage_ssh -> bool: (Irreversible) If SSH configuration and authorization should be managed by this role. (RECOMMENDED!)
@@ -55,16 +54,15 @@ pve_ssh_key_type: "ed25519"
 # pve_ssh_key_bits -> int: (Declarative) The bit-length of the SSH key to generate.
 pve_ssh_key_bits: 256
 # pve_ssh_additional_authorized_keys -> Optional[list[str]]: (Declarative) Additional authorized SSH keys for PVE hosts login.
-pve_ssh_additional_authorized_keys: null
+pve_ssh_additional_authorized_keys:
 # pve_ssh_permit_tty -> bool: (Declarative) If interactive SSH sessions are enabled for root users between hosts.
 pve_ssh_permit_tty: true
 # pve_ssh_strict_include -> bool: (Declarative) Defines the sourcing rules of further SSH configuration files,
-#                                 beside the requiered ones for communication within the cluster 
+#                                 beside the requiered ones for communication within the cluster
 pve_ssh_strict_include: true
 # pve_sshd_strict_include -> bool: (Declarative) Defines the sourcing rules of further SSH Daemon configuration files,
-#                                  beside the requiered ones for communication within the cluster 
+#                                  beside the requiered ones for communication within the cluster
 pve_sshd_strict_include: true
-
 
 ### APT Packages & Repository
 # pve_manage_debian_repository -> bool: (Irreversible) If the debian OS repository mirrors should be overwritten with pve_debian_repository_lines.
@@ -84,7 +82,8 @@ pve_debian_repository_lines:
 pve_repository_line: "deb http://download.proxmox.com/debian/pve {{ pve_debian_version }} pve-no-subscription"
 # pve_ceph_repository_line -> str: (Declarative) PVE Ceph apt sources list repository mirror line.
 # (Further information: https://pve.proxmox.com/wiki/Package_Repositories)
-pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-{{ pve_ceph_default_version }} {{ pve_debian_version }} no-subscription"
+pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-{{ pve_ceph_default_version }} {{ pve_debian_version
+  }} no-subscription"
 # pve_extra_uninstall_packages -> list[str]: (Irreversible) Names of apt packages to remove (purge).
 pve_extra_uninstall_packages: []
 # pve_extra_packages -> list[str]: (Irreversible) Names of additional apt packages to install on each host.
@@ -93,7 +92,6 @@ pve_extra_packages: []
 pve_run_system_upgrades: true
 # pve_run_proxmox_upgrades -> bool: (Declarative) If Proxmox and related packages should be updated.
 pve_run_proxmox_upgrades: true
-
 
 ### PVE Kernel
 # pve_check_for_kernel_update -> bool: (Declarative) Test if a kernel update is pending.
@@ -110,7 +108,6 @@ pve_remove_old_kernels: true
 pve_pin_kernel_version: "{{ pve_default_kernel_version | default(false, true) }}"
 # pve_default_kernel_version -> Optional[false|str]: Same as pve_pin_kernel_version.
 pve_default_kernel_version: false
-
 
 ### PVE User Management, Auth & Realms
 # pve_realms -> dict={
@@ -291,12 +288,9 @@ pve_users: {}
 #  'users' -> list[str]|str: (Any of 'users', 'roles', 'tokens' is required) List of users to apply acl to.
 # }]: (Declarative) PVE Access Control List settings.
 pve_acls: []
-
 # List of storages to manage in PVE. See section on Storage Management.
 pve_metric_servers: []
 pve_hooks: {}
-
-
 ### Security / Hardening
 # pve_sysctl_conf -> dict={
 #  <sysctl key> -> str: <sysctl key value> -> int: Mapping of sysctl config path to value.
@@ -306,18 +300,17 @@ pve_sysctl_conf: {}
 # pve_ksm_enabled -> bool: (Declarative) Toggle (PVE-) kernel same page merging.
 pve_ksm_enabled: true
 
-
 ### PCIe Passthrough
 # pve_pcie_passthrough_enabled -> bool: (Declarative) Same as pve_manage_pcie_passthrough.
 pve_pcie_passthrough_enabled: false
 # pve_manage_pcie_passthrough -> bool: (Declarative) Renamed from pve_pcie_passthrough_enabled.
-pve_manage_pcie_passthrough: "{{ pve_pcie_passthrough_enabled }}"  # introducing pve_manage as prefix for reversible actions
+pve_manage_pcie_passthrough: "{{ pve_pcie_passthrough_enabled }}" # introducing pve_manage as prefix for reversible actions
 pve_pci_device_ids: []
 pve_iommu_passthrough_mode: false
 pve_iommu_unsafe_interrupts: false
 pve_mediated_devices_enabled: false
 pve_pcie_ovmf_enabled: false
-#pve_vfio_blacklist_drivers: []
+# pve_vfio_blacklist_drivers: []
 pve_pcie_ignore_msrs: false
 pve_pcie_report_msrs: true
 ### pve kernel modules
@@ -325,19 +318,16 @@ pve_vfio_modules: [vfio, vfio_iommu_type1, vfio_pci, vfio_virqfd]
 pve_vfio_blacklist_modules: []
 #   required vfio modules
 pve_gvtg_modules: [kvmgt, mdev]
-
-
 ### Watchdog
-pve_watchdog: null
+pve_watchdog:
 pve_watchdog_ipmi_action: power_cycle
 pve_watchdog_ipmi_timeout: 10
-
 
 ### Corosync Cluster
 # TODO rename to 'pve_manage_cluster'
 # pve_cluster_enabled -> bool: (Irreversible) If a PVE cluster consisting of all group hosts should get created.
 #                                             NOTE: This requires "pve_cluster_addr0" to be set and correct.
-pve_cluster_enabled: null
+pve_cluster_enabled:
 # pve_cluster_clustername -> str: (Irreversible) Name of the new cluster.
 pve_cluster_clustername: "{{ pve_group }}"
 # pve_cluster_initiator_host -> str|host: (Declarative)
@@ -345,11 +335,11 @@ pve_cluster_clustername: "{{ pve_group }}"
 pve_cluster_initiator_host: "{{ groups[pve_group][0] }}"
 # pve_cluster_addr0 -> str|ipaddr: (Irreversible) Host's first IP address on Corosync network.
 #                                  NOTE: Aliased by "corosync_ring0_ip: <host_ip_address>/<netmask>" host variable.
-pve_cluster_addr0: "{{ ansible_default_ipv4.address if ansible_default_ipv4.address is defined
-                       else ansible_default_ipv6.address if ansible_default_ipv6.address is defined }}"
+pve_cluster_addr0: "{{ ansible_default_ipv4.address if ansible_default_ipv4.address is defined else ansible_default_ipv6.address
+  if ansible_default_ipv6.address is defined }}"
 # pve_cluster_addr1 -> Optional[false|str|ipaddr]: (Irreversible) Host's second IP address on Corosync network.
 #                                  NOTE: Aliased by "corosync_ring1_ip: <host_ip_address>/<netmask>" host variable.
-pve_cluster_addr1: null
+pve_cluster_addr1:
 # pve_cluster_addr0_priority -> Optional[int=range(0,inf)]: (Irreversible)
 # Priority of hosts first interface on Corosync network, higher int = higher prio = used first
 pve_cluster_addr0_priority: 100
@@ -360,7 +350,7 @@ pve_cluster_addr1_priority: 50
 #  'name' -> str: (Required) Name of HA group.
 #  'comment' -> str: (default="") Comment on HA group, defaults to "".
 #  'nodes' -> list[str|host]: (default=groups[pve_group]) List of hostnames belonging to this HA group.
-#                             Priority within the HA group can be defined by suffixing ':<priority>' to the hostnames. 
+#                             Priority within the HA group can be defined by suffixing ':<priority>' to the hostnames.
 #                             Defaults to all hosts in pve_group.
 #  'nofailback' -> bool: (default=false) The CRM tries to run services on the node with the highest priority.
 #                         If a node with higher priority comes online, the CRM migrates the service to that node.
@@ -368,7 +358,7 @@ pve_cluster_addr1_priority: 50
 #  'restricted' -> bool: (default=false) Resources bound to restricted groups may only run on nodes defined by the group.
 # }]: (Declarative) List of HA groups to be created defined as dict,
 # consisting of 'name' key and key-values used as arguments for ha-manager command.
-pve_cluster_ha_groups: null
+pve_cluster_ha_groups:
 # pve_cluster_ha_init -> bool: Defines if the role takes care to start to start ha-manager crm + lrm
 pve_cluster_ha_manager_init: true
 # pve_datacenter_options -> dict={
@@ -503,15 +493,13 @@ pve_datacenter_cfg: "{{ pve_datacenter_options }}"
 #                                   NOTICE: Storage definitions are mappings between real/physical storage and PVE itself,
 #                                   telling PVE how to access the physical storage. Storage declared here is never created or initialized!
 pve_storages: []
-
 ### PVE PBS encryption key preversation
 # pve_pbs_encryption_keys_preserve -> dict={
 # 'enabled' -> bool: save keys of the pbs storage connection.
 # 'host' -> str: host where the file should be saved.
 # 'file' -> str: file path used to save the encryption keys
 
-pve_pbs_encryption_keys_preserve: null
-
+pve_pbs_encryption_keys_preserve:
 ### CEPH & CEPH CLUSTER
 # pve_ceph_enabled -> bool: (Irreversible) If ceph should be installed and configured for PVE. Mutually exclusive with pve_ceph_enhanced_enabled. EXPERIMENTAL
 #                                          NOTE: Requires pve_ceph_network to be set and correct.
@@ -526,7 +514,7 @@ pve_ceph_network: "{{ (ansible_default_ipv4.network + '/' + ansible_default_ipv4
 # pve_ceph_cluster_network -> Optional[str]: (Irreversible) Separate Ceph cluster network if the Ceph public network should be different.
 #                                            NOTE: Aliased by "ceph_cluster_ip: <host_ip_address>/<netmask>" host variable.
 # (for more information, see https://pve.proxmox.com/pve-docs/chapter-pveceph.html#pve_ceph_install_wizard)
-pve_ceph_cluster_network: null
+pve_ceph_cluster_network:
 # pve_ceph_cluster_min_replica -> int=range(1,7): (Irreversible) Minimum number of active replicas needed to allow IO.
 pve_ceph_cluster_min_replica: 2
 # pve_ceph_cluster_target_replica -> int=range(pve_ceph_cluster_min_replica + 1,7): (Irreversible) Target number of replicas.
@@ -543,8 +531,8 @@ pve_ceph_mgr_group: "{{ pve_ceph_mon_group }}"
 pve_ceph_mds_group: "{{ pve_group }}"
 # pve_ceph_mon_nodes -> list[str|host]: (Declarative)(ONLY if pve_ceph_enabled) List of nodes (inventory hostnames) that should become Ceph monitors.
 #                                                    Amount of exactly 3 (or 5) hosts is recommended.
-pve_ceph_mon_nodes:
-  "{{ groups[pve_ceph_mon_group] if (groups[pve_ceph_mon_group] | default([]) | length is odd) else groups[pve_group][:-1] }}"
+pve_ceph_mon_nodes: "{{ groups[pve_ceph_mon_group] if (groups[pve_ceph_mon_group] | default([]) | length is odd) else groups[pve_group][:-1]
+  }}"
 # pve_ceph_mgr_nodes -> list[str|host]: (Declarative) List of nodes (inventory hostnames) that should become Ceph managers.
 #                                                     Recommended to be the same nodes as in pve_ceph_mon_nodes.
 pve_ceph_mgr_nodes: "{{ pve_ceph_mon_nodes }}"
@@ -568,7 +556,7 @@ pve_ceph_mds_nodes: "{{ groups[pve_group][:2] }}"
 #      dict={ <config key name> -> str: <config key value> -> Optional[str|bool|int|float|list[str]] }
 # }]: (Declarative) (ONLY if pve_ceph_enhanced_enabled) Declare ceph config values. Undeclared config is not changed.
 #                                                       Declare config with {value: 'null'} to force defaults.
-pve_ceph_config: null # []
+pve_ceph_config: # []
 
 ### Ceph OSD
 # pve_ceph_osds -> list[dict={
@@ -592,7 +580,7 @@ pve_ceph_osds: []
 pve_ceph_osds_destroy: false
 # pve_ceph_cleanup_out_osds -> Optional[list[str]=AnyOf('out', 'down', 'stray')]: (Irreversible)
 # If OSDs marked with any status in this list should get destroyed. Implies pve_ceph_osds_destroy == true.
-pve_ceph_cleanup_osd_status: null #["out"]
+pve_ceph_cleanup_osd_status: # ["out"]
 # pve_ceph_wipe_destroyed_osds -> bool|integer: (Irreversible) If destroyed OSDs should get overwritten with zeroes,
 # an integer defines number of sectors to be overwritten from start and end of the osd device.
 pve_ceph_wipe_destroyed_osds: false
@@ -601,8 +589,8 @@ pve_ceph_wipe_destroyed_osds: false
 # 'file' -> str|FilePath: Absolute file path on the target machine. (E.g. "{{ inventory_dir }}/osd-luks.keys")
 # 'host' -> str|host: Host on which LUKS keys should be saved. (E.g. "localhost" for ansible control node.)
 # }]: (Declarative) Define if and where OSD metadata should be saved to. (Including OSD LVM encryption keys.)
-pve_osd_luks_key_preserve: null
-# pve_ceph_clear_all_osds -> bool: If set to true, in case of a fresh installation, all devices marked to be a Ceph OSD, will be wiped, 
+pve_osd_luks_key_preserve:
+# pve_ceph_clear_all_osds -> bool: If set to true, in case of a fresh installation, all devices marked to be a Ceph OSD, will be wiped,
 #                                  to avoid conflicts in case these disks were previously already an OSD in another Ceph.
 #                                  If ceph is already installed on the node, this flag will be ignored and only print a warning.
 #                                                   NOTE: Requires pve_ceph_enhanced_enabled to be set to true.
@@ -612,8 +600,7 @@ pve_ceph_clear_all_osds: false
 # 'only_nvme' -> bool: (default=false) Enable to used only non-root NVMe disks als Ceph-OSDs
 # 'encrypted -> bool: (Optional) Use OSD (LUKS) encryption.
 # }]: Detect non-root (NVMe-) disks to use them as Ceph-OSDs. Only used, when pve_ceph_enhanced_enabled is enabled and no pve_ceph_osds were explicitly defined in the inventory.
-pve_ceph_osd_detection: null
-
+pve_ceph_osd_detection:
 ### Ceph Pools
 # pve_ceph_pools -> list[dict={
 # 'name' -> ...
@@ -625,7 +612,7 @@ pve_ceph_osd_detection: null
 # 'size' -> ...
 # 'min_size' -> ...
 #  }]: (Irreversible)(ONLY if pve_ceph_enabled)
-#pve_ceph_pools: []
+# pve_ceph_pools: []
 
 # (ONLY if pve_ceph_enhanced_enabled)
 # pve_ceph_pools -> list[dict={
@@ -715,14 +702,13 @@ pve_rbd_journal_migration: false
 # } | str: Names of CephFS filesystems to create.
 # ] | dict={<name>: {…}, …}: (Declarative) Which CephFS to create.
 pve_ceph_fs: []
-
 ### Ceph CRUSH customization
 # pve_ceph_backup_crushmap -> bool: If crush maps should get backed up to /etc/pve/ceph.
 pve_ceph_backup_crushmap: true
 # pve_ceph_tunable_profile -> Optional[str=
 # Selection('legacy', 'argonaut', 'bobtail', 'firefly', 'hammer', 'jewel', 'optimal', 'default')
 # ]: (Declarative) (default='default') Ceph tunables profile to set as baseline.
-pve_ceph_tunable_profile: null
+pve_ceph_tunable_profile:
 # pve_ceph_custom_crush_tunables -> list[dict={
 #  'name' -> str: Name of tunable option.
 #  'value' -> int: Value of tunable option.
@@ -785,8 +771,6 @@ pve_ceph_crush_rules: []
 #  'buckets' -> list[str, int]|str: (Optional) List of child bucket names or child bucket ids.
 # }]: (Declarative) Custom CRUSH bucket hierarchy definition. Default root and host buckets can always be omitted and referenced by name.
 pve_ceph_crush_buckets: []
-
-
 ### ZFS
 # pve_zfs_enabled -> bool: (Declarative) Whether to install and configure ZFS packages
 pve_zfs_enabled: false
@@ -796,8 +780,6 @@ pve_zfs_enabled: false
 # pve_zfs_zed_email: "email address for zfs events"
 # pve_zfs_create_volumes -> list[str]: Names of ZFS volumes to create
 pve_zfs_create_volumes: []
-
-
 ### FILESYSTEMS
 # pve_filesystems -> dict={
 # <dev> -> str: (Required) Target path to block device.
@@ -809,13 +791,11 @@ pve_zfs_create_volumes: []
 #  'uuid' -> str: Set filesystem’s UUID to the given value. Mutually exclusive with 'resizefs'.
 # } | list[dict={'dev': <dev>, …}]: (Irreversible) Additional filesystem to be created on each host locally.
 pve_filesystems: []
-
-
 ### BACKUP configuration
-#pve_backup_jobs: -> list[dict{
+# pve_backup_jobs: -> list[dict{
 # 'all' -> bool: (Required if not vmid) Backup all known guest systems on this host.
 # 'bwlimit' -> integer: Limit I/O bandwidth (in KiB/s).´
-# 'comment' -> str: Description for the Job 
+# 'comment' -> str: Description for the Job
 # 'compress' -> str=Selection('0','1','gzip','lzo','zstd'): Compress dump file, select algorithm
 # 'dow' -> str= selection('mon','tue','wed','thu','fri','sat','sun'): Day of week selection (Requires)
 # 'dumpdir' -> str: Store resulting files to specified directory.
@@ -823,15 +803,15 @@ pve_filesystems: []
 # 'exclude' -> str: Exclude specified guest systems (assumes --all)
 # 'exclude-path' -> str: Exclude certain files/directories (shell globs). Paths starting with '/' are anchored to the container's root,
 #                        other paths match relative to each subdirectory.
-# 'fleecing' -> dict{ 
+# 'fleecing' -> dict{
 #    enabled -> bool: enables fleecing for the job,
-#    storage -> str: <storage ID> used for capturing fleece buffer 
-#    }: Options for backup fleecing (VM only) 
+#    storage -> str: <storage ID> used for capturing fleece buffer
+#    }: Options for backup fleecing (VM only)
 # 'id' -> str: Job ID (will be autogenerated, if not set).
-# 'ionice' -> int=range(0,8): Set IO priority when using the BFQ scheduler. For snapshot and suspend mode backups of VMs, 
+# 'ionice' -> int=range(0,8): Set IO priority when using the BFQ scheduler. For snapshot and suspend mode backups of VMs,
 #                             this only affects the compressor. A value of 8 means the idle priority is used,
 #                             otherwise the best-effort priority is used with the specified value.
-# 'lockwait' -> int=range(0,N): Maximal time to wait for the global lock (minutes). 
+# 'lockwait' -> int=range(0,N): Maximal time to wait for the global lock (minutes).
 # 'mailto' -> str: Deprecated - Use notification targets/matchers instead. Comma-separated list of email addresses or users that should
 #                  receive email notifications.
 # 'maxfiles' -> int=range(0,N): Deprecated: use 'prune-backups' instead. Maximal number of backup files per guest system.
@@ -840,14 +820,14 @@ pve_filesystems: []
 #                          which will be replaced by their values. Currently supported are {{cluster}}, {{guestname}}, {{node}},
 #                          and {{vmid}}, but more might be added in the future. Needs to be a single line,
 #                          newline and backslash need to be escaped as '\n' and '\\' respectively. (Requires option(s): storage)
-# 'notification-mode' -> str=Selection('auto','legacy-sendmail','notification-system'): Determine which notification system to use. 
+# 'notification-mode' -> str=Selection('auto','legacy-sendmail','notification-system'): Determine which notification system to use.
 #                            If set to 'legacy-sendmail', vzdump will consider the mailto/mailnotification parameters and send emails to the
-#                            specified address(es) via the 'sendmail' command. If set to 'notification-system', a notification 
-#                            will be sent via PVE's notification system, and the mailto and mailnotification will be ignored. 
+#                            specified address(es) via the 'sendmail' command. If set to 'notification-system', a notification
+#                            will be sent via PVE's notification system, and the mailto and mailnotification will be ignored.
 #                            If set to 'auto' (default setting), an email will be sent if mailto is set, and the notification
 #                            system will be used if not. (defaults to = auto)
 # 'pbs-change-detection-mode' -> str=Selection('data','legacy','metadata'): PBS mode used to detect file changes and switch encoding
-#                                                                           format for container backups.                               
+#                                                                           format for container backups.
 # 'performance' -> dict{
 #     max-worker -> int: number of workers
 #     pbs-entries-max -> int: can avoid failing backups due to a high amount of files in folders where a folder exclusion is not possible.
@@ -857,10 +837,10 @@ pve_filesystems: []
 # 'protected' -> bool: If true, mark backup(s) as protected. (Requires option(s): storage)
 # 'prune-backups' -> dict{
 #   keep-all -> bool: (default)
-#   keep-daily -> int: 
+#   keep-daily -> int:
 #   keep-hourly -> int:
 #   keep-last -> int:
-#   keep-monthly -> int: 
+#   keep-monthly -> int:
 #   keep-weekly -> int:
 #   keep-yearly -> int:
 # }: Use these retention options instead of those from the storage configuration.
@@ -873,12 +853,12 @@ pve_filesystems: []
 # 'stdexcludes' -> bool: Exclude temporary files and logs. (default=1)
 # 'stop' -> bool: Stop running backup jobs on this host. (default=0)
 # 'stopwait' -> int=range(0,N): Maximal time to wait until a guest system is stopped (minutes).
-# 'storage' -> string: <storage ID> Store resulting file to this storage. 
+# 'storage' -> string: <storage ID> Store resulting file to this storage.
 # 'tmpdir' -> string: Store temporary files to specified directory.
 # 'vmid' -> int=range(100,N): The ID of the guest system you want to backup.
 # 'zstd' -> int: Zstd threads. N=0 uses half of the available cores, if N is set to a value bigger than 0, N is used as thread count. (default=1)
-#}]: (Declarative) Defines a list of Backup jobs to be run on a regular schedule within the cluster
-pve_backup_jobs: null
+# }]: (Declarative) Defines a list of Backup jobs to be run on a regular schedule within the cluster
+pve_backup_jobs:
 # pve_rollout_backup -> Optional[dict={
 # 'enabled' -> bool: (default=false) Enable, to backup all virtual machines
 # 'mode' -> string: (default=snapshot) Backup mode (snapshot, suspend, stop)
@@ -888,7 +868,6 @@ pve_rollout_backup:
   enabled: false
   mode: "snapshot"
   storage: "local"
-
 
 ### CEPH-UPGRADE configuration
 

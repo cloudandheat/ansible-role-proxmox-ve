@@ -3,19 +3,18 @@
   run_once: true
   block:
     - name: Get detailed Ceph health status
-      ansible.builtin.command: 
+      ansible.builtin.command:
         cmd: "ceph health detail --format json"
       register: _ceph_health_detail_raw
       vars:
         _failed_filter: "{{ _ceph_health_detail_raw.stdout | from_json | json_query('status') }}"
       failed_when:
         - "_failed_filter != 'HEALTH_OK'"
-        - "chup_ignore_healthwarns != true" 
+        - "chup_ignore_healthwarns != true"
       retries: "{{ chup_healthcheck_retries }}"
       delay: 10
 
   rescue:
-
     - name: Extract health details
       ansible.builtin.set_fact:
         _ceph_health_status: "{{ _ceph_health_detail['status'] }}"
@@ -31,7 +30,7 @@
     - name: Fail if health is not OK
       ansible.builtin.fail:
         msg: |
-           ❌ Ceph summary status not OK: {{ _ceph_health_status | to_nice_yaml }}
-           ❌ Contains check warnings for {{ _ceph_health_checks | to_nice_yaml }}
-           ❌ Contains crash events -
-           {{ _ceph_crash_ls.stdout | from_json | to_nice_yaml }}
+          ❌ Ceph summary status not OK: {{ _ceph_health_status | to_nice_yaml }}
+          ❌ Contains check warnings for {{ _ceph_health_checks | to_nice_yaml }}
+          ❌ Contains crash events -
+          {{ _ceph_crash_ls.stdout | from_json | to_nice_yaml }}

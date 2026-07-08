@@ -43,12 +43,12 @@
         # NOTE: Jinja always evaluates all arguments in an expression, so cases like:
         # "{{ hostvars[<inv_hostname>] | default(hostvars[_fqdn2invname[<inv_hostname>]]) }}"
         # cause 'dict object' has no attribute '<inv_hostname>' error, if <inv_hostname> is not a key.
-        _fqdn2invname: "{{ _fqdn2invname | default({}) | combine({item.ansible_fqdn: item.inventory_hostname,
-                                                                 item.inventory_hostname: item.inventory_hostname}) }}"
-        _shrt2invname: "{{ _shrt2invname | default({}) | combine({item.ansible_hostname: item.inventory_hostname,
-                                                                 item.inventory_hostname: item.inventory_hostname}) }}"
+        _fqdn2invname: "{{ _fqdn2invname | default({}) | combine({item.ansible_fqdn: item.inventory_hostname, item.inventory_hostname:
+          item.inventory_hostname}) }}"
+        _shrt2invname: "{{ _shrt2invname | default({}) | combine({item.ansible_hostname: item.inventory_hostname, item.inventory_hostname:
+          item.inventory_hostname}) }}"
         _shrtinv2invname: "{{ _shrtinv2invname | default({}) | combine({item.inventory_hostname_short: item.inventory_hostname,
-                                                                 item.inventory_hostname: item.inventory_hostname}) }}"
+          item.inventory_hostname: item.inventory_hostname}) }}"
       loop: "{{ groups[pve_group] | default([inventory_hostname], true) | map('extract', hostvars) }}"
       loop_control:
         label: "{{ item.inventory_hostname }}, {{ item.ansible_hostname }}, {{ item.ansible_fqdn }}"

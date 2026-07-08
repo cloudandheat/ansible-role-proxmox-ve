@@ -7,7 +7,8 @@
         - name: Normalize PVE groups parameter into list of dicts from list
           ansible.builtin.set_fact:
             # transform from ["value",…, {<setting>:<value>,…}] into [{'groupid':<value>,…, <setting>: <value>,…}]
-            pve_groups: "{{ pve_groups | select('mapping') + pve_groups | reject('mapping') | json_query('[].{groupid: @}') }}"
+            pve_groups: "{{ pve_groups | select('mapping') + pve_groups | reject('mapping') | json_query('[].{groupid: @}')
+              }}"
           when:
             - "pve_groups is iterable"
             - "pve_groups is not mapping"
@@ -16,7 +17,8 @@
         - name: Normalize PVE groups parameter into list of dicts from mapping
           ansible.builtin.set_fact:
             # transform from {<groupid>:{<setting>: <value>, …}} into [{'groupid':…, <setting>: <value>, …}]
-            pve_groups: "{{ pve_groups | dict2items | json_query('[].merge({groupid: key}, not_null(value, {groupid: key}))') }}"
+            pve_groups: "{{ pve_groups | dict2items | json_query('[].merge({groupid: key}, not_null(value, {groupid: key}))')
+              }}"
           when: "pve_groups is mapping"
 
         - name: Normalize PVE groups parameter into empty list if none
@@ -62,8 +64,7 @@
       tags: groups_create
       block:
         - name: Create PVE groups
-          ansible.builtin.command:
-            "pvesh create /access/groups {{ item | dict2args(bool2int=true) }}"
+          ansible.builtin.command: "pvesh create /access/groups {{ item | dict2args(bool2int=true) }}"
           loop: "{{ pve_groups | rejectattr('groupid', 'in', _pve_groups | map(attribute='groupid')) }}"
           changed_when: true
 
@@ -72,8 +73,8 @@
       tags: groups_modify
       block:
         - name: Modify PVE groups
-          ansible.builtin.command:
-            "pvesh set /access/groups/{{ item.groupid }} --comment \"{{ item.comment | default('', true) }}\""
+          ansible.builtin.command: "pvesh set /access/groups/{{ item.groupid }} --comment \"{{ item.comment | default('',
+            true) }}\""
           vars:
             query_str: "[?groupid == '{{ item.groupid }}'].comment | [0]"
           loop: "{{ pve_groups | selectattr('groupid', 'in', _pve_groups | map(attribute='groupid')) }}"

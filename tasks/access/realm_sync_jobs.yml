@@ -35,7 +35,7 @@
       vars:
         enabled_def: true
         enable_new_def: true
-        remove_vanished_def: 'none'
+        remove_vanished_def: "none"
       block:
         - name: Initialize variables
           ansible.builtin.set_fact:

@@ -16,7 +16,8 @@
         - name: Normalize PVE users parameter into list of dicts from mapping
           ansible.builtin.set_fact:
             # transform from {<userid>:{<setting>: <value>, …}} into [{'userid':…, <setting>: <value>, …}]
-            pve_users: "{{ pve_users | dict2items | json_query('[].merge({userid: key}, not_null(value, {userid: key}))') }}"
+            pve_users: "{{ pve_users | dict2items | json_query('[].merge({userid: key}, not_null(value, {userid: key}))')
+              }}"
           when: "pve_users is mapping"
 
         - name: Normalize PVE users parameter into empty list if none
@@ -36,7 +37,8 @@
         - name: Ensure that every userid is valid
           ansible.builtin.assert:
             that: "item.userid is match('[-.\\w]+@[-.\\w]+')"
-            msg: "Userid of '{{ item }}' is not in a <user-name>@<realm-name> format or contains invalid characters (only [-.A-z0-9_])!"
+            msg: "Userid of '{{ item }}' is not in a <user-name>@<realm-name> format or contains invalid characters (only
+              [-.A-z0-9_])!"
           loop: "{{ pve_users }}"
 
     - name: Prepare PVE user management
@@ -73,8 +75,7 @@
       tags: users_create
       block:
         - name: Create PVE users
-          ansible.builtin.command:
-            "pvesh create /access/users {{ item | dict2args(bool2int=true) }}"
+          ansible.builtin.command: "pvesh create /access/users {{ item | dict2args(bool2int=true) }}"
           loop: "{{ pve_users | rejectattr('userid', 'in', _pve_users | map(attribute='userid')) }}"
           changed_when: true
 
@@ -86,8 +87,8 @@
           ansible.builtin.set_fact:
             _pve_users_res: "{{ _pve_users_res | default([]) + [item | combine(upd_item)] }}"
           vars:
-            upd_item: "{{ {'comment': usr_comment, 'email': usr_email, 'enable': usr_enable, 'expire': usr_expire,
-                           'firstname': usr_first, 'lastname': usr_last, 'groups': usr_groups, 'keys': usr_keys} }}"
+            upd_item: "{{ {'comment': usr_comment, 'email': usr_email, 'enable': usr_enable, 'expire': usr_expire, 'firstname':
+              usr_first, 'lastname': usr_last, 'groups': usr_groups, 'keys': usr_keys} }}"
             usr_comment: "{{ item.comment | default('\"\"', true) }}"
             usr_email: "{{ item.email | default('\"\"', true) }}"
             usr_enable: "{{ item.enable | default(true, false) }}"
@@ -100,8 +101,8 @@
           loop: "{{ pve_users | selectattr('userid', 'in', _pve_users | map(attribute='userid')) }}"
 
         - name: Modify PVE users
-          ansible.builtin.command:
-            "pvesh set /access/users/{{ item.userid }} {{ item | dict2args(bool2int=true, reject_keys=['userid', 'password']) }}"
+          ansible.builtin.command: "pvesh set /access/users/{{ item.userid }} {{ item | dict2args(bool2int=true, reject_keys=['userid',
+            'password']) }}"
           loop: "{{ _pve_users_res | default([]) }}"
           changed_when: true
 

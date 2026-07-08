@@ -7,4 +7,4 @@
 - name: Upgrade the node instance to install new ceph version binaries
   ansible.builtin.apt:
     upgrade: dist
-    update_cache: yes
+    update_cache: true

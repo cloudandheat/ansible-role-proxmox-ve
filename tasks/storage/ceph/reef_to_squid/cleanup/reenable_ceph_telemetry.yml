@@ -1,21 +1,20 @@
 ---
-
 - name: "(re)enable telemetry send to ceph project -> https://telemetry-public.ceph.com/d/ZFYuv1qWz/telemetry?orgId=1"
-  when: chup_disable_telemetry == false
+  when: not chup_disable_telemetry
   block:
-  - name: Disable Ceph telemetry
-    ansible.builtin.command:
-      cmd: "ceph telemetry preview-all"
-    register: _telemetry_result
+    - name: Disable Ceph telemetry
+      ansible.builtin.command:
+        cmd: "ceph telemetry preview-all"
+      register: _telemetry_result
 
-  - name: Enable telemetry
-    ansible.builtin.command:
-      cmd: ceph telemetry on --license sharing-1-0
-  
-  - name: Enable perf channel
-    ansible.builtin.command:
-      cmd: ceph telemetry enable channel perf
+    - name: Enable telemetry
+      ansible.builtin.command:
+        cmd: ceph telemetry on --license sharing-1-0
 
-  - name: Display telemetry to be send
-    ansible.builtin.debug:
-      var: _telemetry_result
+    - name: Enable perf channel
+      ansible.builtin.command:
+        cmd: ceph telemetry enable channel perf
+
+    - name: Display telemetry to be send
+      ansible.builtin.debug:
+        var: _telemetry_result

@@ -15,9 +15,6 @@
             - "pve_users is not mapping"
             - "pve_users | reject('mapping') | length > 0"
 
-        . debug:
-            var: pve_users
-        - meta: end_play
         - name: Normalize PVE user parameter into list of dicts from mapping
           ansible.builtin.set_fact:
             # transform from {<userid>:{<setting>: <value>, …}} into [{'userid':…, <setting>: <value>, …}]

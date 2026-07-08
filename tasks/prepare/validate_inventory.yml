@@ -1,17 +1,16 @@
 ---
-
 # just wip, do validation later
-    - name: Validate PVE HA groups parameter
-      when: "inventory_hostname == _init_node"
-      block:
-        - name: Ensure that every entry has a name
-          ansible.builtin.assert:
-            that: "item.name | default(false, true) is not false"
-            msg: "Definition of '{{ item }}' must have a name!"
-          loop: "{{ _pve_cluster_ha_groups_list }}"
+- name: Validate PVE HA groups parameter
+  when: "inventory_hostname == _init_node"
+  block:
+    - name: Ensure that every entry has a name
+      ansible.builtin.assert:
+        that: "item.name | default(false, true) is not false"
+        msg: "Definition of '{{ item }}' must have a name!"
+      loop: "{{ _pve_cluster_ha_groups_list }}"
 
-        - name: Ensure that every entry has nodes
-          ansible.builtin.assert:
-            that: "item.nodes | default([], true) | length > 0"
-            msg: "Definition of '{{ item }}' must have at least one node in nodes!"
-          loop: "{{ _pve_cluster_ha_groups_list }}"
+    - name: Ensure that every entry has nodes
+      ansible.builtin.assert:
+        that: "item.nodes | default([], true) | length > 0"
+        msg: "Definition of '{{ item }}' must have at least one node in nodes!"
+      loop: "{{ _pve_cluster_ha_groups_list }}"

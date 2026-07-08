@@ -16,7 +16,8 @@
         - name: Normalize PVE roles parameter into list of dicts from mapping
           ansible.builtin.set_fact:
             # transform from {<roleid>:{<setting>: <value>, …}} into [{'roleid':…, <setting>: <value>, …}]
-            pve_roles: "{{ pve_roles | dict2items | json_query('[].merge({roleid: key}, not_null(value, {roleid: key}))') }}"
+            pve_roles: "{{ pve_roles | dict2items | json_query('[].merge({roleid: key}, not_null(value, {roleid: key}))')
+              }}"
           when: "pve_roles is mapping"
 
         - name: Normalize PVE roles parameter into empty list if none
@@ -60,8 +61,7 @@
       tags: roles_create
       block:
         - name: Create PVE roles
-          ansible.builtin.command:
-            "pvesh create /access/roles {{ item | dict2args(bool2int=true) }}"
+          ansible.builtin.command: "pvesh create /access/roles {{ item | dict2args(bool2int=true) }}"
           loop: "{{ pve_roles | rejectattr('roleid', 'in', _pve_roles | map(attribute='roleid')) }}"
           changed_when: true
 
@@ -70,7 +70,7 @@
       tags: roles_modify
       block:
         - name: Modify PVE roles
-          ansible.builtin.command:
-            "pvesh set /access/roles/{{ item.roleid }} {{ item | dict2args(bool2int=true, reject_keys=['roleid']) }}"
+          ansible.builtin.command: "pvesh set /access/roles/{{ item.roleid }} {{ item | dict2args(bool2int=true, reject_keys=['roleid'])
+            }}"
           loop: "{{ pve_roles | selectattr('roleid', 'in', _pve_roles | map(attribute='roleid')) }}"
           changed_when: true

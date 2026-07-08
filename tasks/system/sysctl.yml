@@ -28,4 +28,3 @@
       ansible.builtin.command: "sysctl --system"
       when: "pve_sysctl_conf | length == 0"
       changed_when: "_sysctl_file_raw.changed"
-

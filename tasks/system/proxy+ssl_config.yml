@@ -43,7 +43,8 @@
               content: "{{ pve_ssl_certificate }}"
 
         - name: Install PVE SSL certificate chain and key
-          ansible.builtin.shell: "diff {{ item.src }} {{ item.dest }} >/dev/null 2>&1 || (cp {{ item.src }} {{ item.dest }}; echo changed)"
+          ansible.builtin.shell: "diff {{ item.src }} {{ item.dest }} >/dev/null 2>&1 || (cp {{ item.src }} {{ item.dest }};
+            echo changed)"
           register: _pve_ssl_diff
           changed_when: "'changed' in _pve_ssl_diff.stdout"
           loop:
@@ -61,6 +62,6 @@
       ansible.builtin.template:
         src: system/default/pveproxy.j2
         dest: /etc/default/pveproxy
+        mode: "644"
       notify:
         - restart pveproxy
-

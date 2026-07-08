@@ -16,7 +16,8 @@
         - name: Normalize PVE pools parameter into list of dicts from mapping
           ansible.builtin.set_fact:
             # transform from {<poolid>:{<setting>: <value>, …}} into [{'poolid':…, <setting>: <value>, …}]
-            pve_pools: "{{ pve_pools | dict2items | json_query('[].merge({poolid: key}, not_null(value, {poolid: key}))') }}"
+            pve_pools: "{{ pve_pools | dict2items | json_query('[].merge({poolid: key}, not_null(value, {poolid: key}))')
+              }}"
           when: "pve_pools is mapping"
 
         - name: Normalize PVE pools parameter into empty list if none
@@ -66,11 +67,8 @@
             # Normalize into [{poolid: <poolid>, vm: <list of vmids>, storage: <list of storage names>}]
             _pve_pools_remove: "{{ _pve_pools_remove | default([]) + item.stdout | from_json | json_query(query_str) }}"
           vars:
-            query_str: "[].{poolid: poolid,
-                            comment: comment,
-                            members: members,
-                            storage: members[?type == 'storage'].storage,
-                            vms: members[?type == 'qemu' || type == 'lxc'].vmid}"
+            query_str: "[].{poolid: poolid, comment: comment, members: members, storage: members[?type == 'storage'].storage,
+              vms: members[?type == 'qemu' || type == 'lxc'].vmid}"
           loop: "{{ _pvesh_pools_get_raws.results }}"
           loop_control:
             label: "{{ item.item }}"
@@ -80,8 +78,8 @@
             msg: "_pve_pools_remove: {{ _pve_pools_remove | default('UNDEF') }}"
 
         - name: Empty PVE pools storage members for removal
-          ansible.builtin.command:
-            "pvesh set /pools --delete 1 {{ item | dict2args(bool2int=true, select_keys=['poolid', 'storage']) }}"
+          ansible.builtin.command: "pvesh set /pools --delete 1 {{ item | dict2args(bool2int=true, select_keys=['poolid',
+            'storage']) }}"
           loop: "{{ _pve_pools_remove | default([]) }}"
           loop_control:
             label: "{{ item.poolid }}"
@@ -89,8 +87,8 @@
           changed_when: true
 
         - name: Empty PVE pools qemu/lxc members for removal
-          ansible.builtin.command:
-            "pvesh set /pools --delete 1 {{ item | dict2args(bool2int=true, select_keys=['poolid', 'vms']) }}"
+          ansible.builtin.command: "pvesh set /pools --delete 1 {{ item | dict2args(bool2int=true, select_keys=['poolid',
+            'vms']) }}"
           loop: "{{ _pve_pools_remove | default([]) }}"
           loop_control:
             label: "{{ item.poolid }}"
@@ -109,8 +107,8 @@
       tags: pools_create
       block:
         - name: Create PVE pools
-          ansible.builtin.command:
-            "pvesh create /pools {{ item | dict2args(bool2int=true, select_keys=['poolid', 'comment']) }}"
+          ansible.builtin.command: "pvesh create /pools {{ item | dict2args(bool2int=true, select_keys=['poolid', 'comment'])
+            }}"
           loop: "{{ pve_pools | rejectattr('poolid', 'in', _pve_pools | map(attribute='poolid')) }}"
           changed_when: true
 
@@ -138,11 +136,8 @@
                 # Normalize into [{poolid: <poolid>, vm: <list of vmids>, storage: <list of storage names>}]
                 _pve_pools_mod: "{{ _pve_pools_mod + item.stdout | from_json | json_query(query_str) }}"
               vars:
-                query_str: "[].{poolid: poolid,
-                                comment: comment,
-                                members: members,
-                                storage: members[?type == 'storage'].storage,
-                                vms: members[?type == 'qemu' || type == 'lxc'].vmid}"
+                query_str: "[].{poolid: poolid, comment: comment, members: members, storage: members[?type == 'storage'].storage,
+                  vms: members[?type == 'qemu' || type == 'lxc'].vmid}"
               loop: "{{ _pvesh_pools_get_raws.results }}"
               loop_control:
                 label: "{{ item.item }}"
@@ -184,8 +179,8 @@
 
                 - name: Merge actual pool members with reported members
                   ansible.builtin.set_fact:
-                    _pve_pools_mod: "{{ _pve_pools_mod | rejectattr('poolid', '==', item.poolid)
-                                      + [rep_item | combine({'vms': res_vms, 'storage': res_sto}, list_merge='replace')] }}"
+                    _pve_pools_mod: "{{ _pve_pools_mod | rejectattr('poolid', '==', item.poolid) + [rep_item | combine({'vms':
+                      res_vms, 'storage': res_sto}, list_merge='replace')] }}"
                   vars:
                     rep_item: "{{ _pve_pools_mod | selectattr('poolid', '==', item.poolid) | first }}"
                     res_vms: "{{ rep_item.vms | union(item.vms) | unique }}"
@@ -213,23 +208,23 @@
             msg: "_pve_pools_rem: {{ _pve_pools_rem }}"
 
         - name: Modify PVE pools to remove missing storages
-          ansible.builtin.command:
-            "pvesh set /pools --delete 1 {{ item | dict2args(bool2int=true, select_keys=['poolid', 'storage']) }}"
+          ansible.builtin.command: "pvesh set /pools --delete 1 {{ item | dict2args(bool2int=true, select_keys=['poolid',
+            'storage']) }}"
           loop: "{{ _pve_pools_rem }}"
           when: "item.storage | length > 0"
           changed_when: true
 
         - name: Modify PVE pools to remove missing vms
-          ansible.builtin.command:
-            "pvesh set /pools --delete 1 {{ item | dict2args(bool2int=true, select_keys=['poolid', 'vms']) }}"
+          ansible.builtin.command: "pvesh set /pools --delete 1 {{ item | dict2args(bool2int=true, select_keys=['poolid',
+            'vms']) }}"
           loop: "{{ _pve_pools_rem }}"
           when: "item.vms | length > 0"
           changed_when: true
 
         - name: Collect PVE pool attributes to add
           ansible.builtin.set_fact:
-            _pve_pools_add: # Notice: item | combine -> doesn't omit possible other (e.g. 'allow-move') attributes
-              "{{ _pve_pools_add + [item | combine({'storage': sto_add, 'vms': vms_add}, list_merge='replace')] }}"
+            _pve_pools_add: "{{ _pve_pools_add + [item | combine({'storage': sto_add, 'vms': vms_add}, list_merge='replace')]
+              }}" # Notice: item | combine -> doesn't omit possible other (e.g. 'allow-move') attributes
           vars:
             curr_pool: "{{ _pve_pools_mod | selectattr('poolid', '==', item.poolid) | first }}"
             sto_add: "{{ item.storage | default([], true) | difference(curr_pool.storage) }}"
@@ -245,8 +240,8 @@
 
         # NOTICE: pvesh is buggy and ignores pools members when they don't exist on reading, but happily adds them on writing pool definitions.
         - name: Modify PVE pools to add missing storages
-          ansible.builtin.command:
-            "pvesh set /pools {{ item | dict2args(bool2int=true, reject_keys=['members', 'comment', 'vms']) }}"
+          ansible.builtin.command: "pvesh set /pools {{ item | dict2args(bool2int=true, reject_keys=['members', 'comment',
+            'vms']) }}"
           loop: "{{ _pve_pools_add }}"
           loop_control:
             label: "{{ item.poolid }}"
@@ -254,8 +249,8 @@
           changed_when: true
 
         - name: Modify PVE pools to add missing vms
-          ansible.builtin.command:
-            "pvesh set /pools {{ item | dict2args(bool2int=true, reject_keys=['members', 'comment', 'storage']) }}"
+          ansible.builtin.command: "pvesh set /pools {{ item | dict2args(bool2int=true, reject_keys=['members', 'comment',
+            'storage']) }}"
           loop: "{{ _pve_pools_add }}"
           loop_control:
             label: "{{ item.poolid }}"
@@ -263,8 +258,8 @@
           changed_when: true
 
         - name: Modify PVE pools comment
-          ansible.builtin.command:
-            "pvesh set /pools --poolid {{ item.poolid }} --comment \"{{ item.comment | default('', true) }}\""
+          ansible.builtin.command: "pvesh set /pools --poolid {{ item.poolid }} --comment \"{{ item.comment | default('',
+            true) }}\""
           vars:
             query_str: "[?poolid == '{{ item.poolid }}'].comment"
           loop: "{{ pve_pools }}"

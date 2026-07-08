@@ -41,9 +41,8 @@
 
         - name: Ensure that every entry has one of users, groups or tokens
           ansible.builtin.assert:
-            that: "item.users | default(false, true) is not false
-                  or item.groups | default(false, true) is not false
-                  or item.tokens | default(false, true) is not false"
+            that: "item.users | default(false, true) is not false or item.groups | default(false, true) is not false or item.tokens
+              | default(false, true) is not false"
             msg: "Definition of '{{ item }}' must have at least users, groups or tokens!"
           loop: "{{ pve_acls }}"
 
@@ -73,11 +72,12 @@
               ansible.builtin.set_fact:
                 _tmp_pve_acls: "{{ _tmp_pve_acls + [item | combine(upd_item)] }}"
               vars:
-                upd_item: "{{ {'path': acl_path, 'propagate': acl_propagate | int, 'roles': acl_roles | map('trim'),
-                              'users': acl_users | map('trim'), 'groups': acl_groups | map('trim'), 'tokens': acl_tokens | map('trim')} }}"
+                upd_item: "{{ {'path': acl_path, 'propagate': acl_propagate | int, 'roles': acl_roles | map('trim'), 'users':
+                  acl_users | map('trim'), 'groups': acl_groups | map('trim'), 'tokens': acl_tokens | map('trim')} }}"
                 # Normalize acl path to start with '/', removing consecutive slashes and to not end with '/'.
                 # see https://github.com/proxmox/pve-access-control/blob/25dd3756f90afbf65799da4708b3df9c2bf7e9f6/src/PVE/AccessControl.pm#L1240
-                acl_path: "{{ item.path | regex_replace('/+$', '') | regex_replace('/+', '/') | regex_replace('^(?!/)', '/') | trim }}"
+                acl_path: "{{ item.path | regex_replace('/+$', '') | regex_replace('/+', '/') | regex_replace('^(?!/)', '/')
+                  | trim }}"
                 acl_propagate: "{{ 0 if (item.propagate | default(true)) is false else 1 }}"
                 decl_roles: "{{ item.roles | default('', true) }}"
                 acl_roles: "{{ (decl_roles | split(',') if decl_roles is string else decl_roles) | reject('==', '') }}"
@@ -108,10 +108,9 @@
 
             - name: Expanding PVE ACLs parameter by users, groups, tokens attributes
               ansible.builtin.set_fact:
-                _tmp_pve_acls: "{{ _tmp_pve_acls
-                                  + item.users | json_query(query_user) | map('combine', upd_item)
-                                  + item.groups | json_query(query_group) | map('combine', upd_item)
-                                  + item.tokens | json_query(query_token) | map('combine', upd_item) }}"
+                _tmp_pve_acls: "{{ _tmp_pve_acls + item.users | json_query(query_user) | map('combine', upd_item) + item.groups
+                  | json_query(query_group) | map('combine', upd_item) + item.tokens | json_query(query_token) | map('combine',
+                  upd_item) }}"
               vars:
                 upd_item: "{{ item | ansible.utils.remove_keys(target=['users', 'groups', 'tokens']) }}"
                 query_user: "[].{ugid: @, type: 'user'}"
@@ -133,11 +132,11 @@
       tags: acls_remove
       block:
         - name: Remove non-declared PVE ACLs
-          ansible.builtin.command:
-            "pvesh set /access/acl --delete 1 --path {{ item.path }} --roles {{ item.roleid }} --{{ item.type }}s {{ item.ugid }}"
+          ansible.builtin.command: "pvesh set /access/acl --delete 1 --path {{ item.path }} --roles {{ item.roleid }} --{{
+            item.type }}s {{ item.ugid }}"
           loop: "{{ _pve_acls }}"
-          when: "pve_acls | selectattr('path', '==', item.path) | selectattr('roleid', '==', item.roleid)
-                | selectattr('ugid', '==', item.ugid) | length == 0"
+          when: "pve_acls | selectattr('path', '==', item.path) | selectattr('roleid', '==', item.roleid) | selectattr('ugid',
+            '==', item.ugid) | length == 0"
           changed_when: true
 
     - name: Set PVE ACLs
@@ -147,10 +146,9 @@
         - acls_modify
       block:
         - name: Set PVE ACLs for users
-          ansible.builtin.command:
-            "pvesh set /access/acl/ --roles {{ item.roleid }} --{{ item.type }}s {{ item.ugid }}
-             {{ item | dict2args(bool2int=true, reject_keys=['roleid', 'type', 'ugid']) }}"
+          ansible.builtin.command: "pvesh set /access/acl/ --roles {{ item.roleid }} --{{ item.type }}s {{ item.ugid }} {{
+            item | dict2args(bool2int=true, reject_keys=['roleid', 'type', 'ugid']) }}"
           loop: "{{ pve_acls }}"
-          when: "_pve_acls | selectattr('path', '==', item.path) | selectattr('roleid', '==', item.roleid)
-                | selectattr('ugid', '==', item.ugid) | selectattr('propagate', '==', item.propagate) | length == 0"
+          when: "_pve_acls | selectattr('path', '==', item.path) | selectattr('roleid', '==', item.roleid) | selectattr('ugid',
+            '==', item.ugid) | selectattr('propagate', '==', item.propagate) | length == 0"
           changed_when: true

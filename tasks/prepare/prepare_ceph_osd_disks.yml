@@ -1,6 +1,6 @@
 ---
 - name: Identify disks for Ceph-OSDs
-  when: 
+  when:
     - "pve_ceph_enhanced_enabled | bool"
     - "pve_ceph_osd_detection.enabled | default(false) | bool"
   block:
@@ -20,7 +20,7 @@
       register: host_facts
 
     - name: Determine root device
-      set_fact:
+      ansible.builtin.set_fact:
         root_device: >-
           {{
             host_facts.ansible_facts.ansible_mounts
@@ -32,7 +32,7 @@
           }}
 
     - name: List non-root devices
-      set_fact:
+      ansible.builtin.set_fact:
         nvme_disks: >-
           {{
             host_facts.ansible_facts.ansible_devices
@@ -59,7 +59,7 @@
       when: nvme_disks | length == 0
 
     - name: Build pve_ceph_osds structure
-      set_fact:
+      ansible.builtin.set_fact:
         pve_ceph_osds: >-
           {{
             pve_ceph_osds | default([]) + [
@@ -71,30 +71,29 @@
             ]
           }}
       loop: "{{ nvme_disks }}"
-    
-    # debug-output
-    # - name: Show the pve_ceph_osds structure
-    #   debug:
-    #     var: pve_ceph_osds
 
+# debug-output
+# - name: Show the pve_ceph_osds structure
+#   debug:
+#     var: pve_ceph_osds
 
 # In case the used OSD came from an old Proxmox-VE / Ceph deployment, they must
 # be wiped to make the usable as OSDs for the new ceph
 # Requires that "pve_ceph_clear_all_osds" is set to true to enforce the cleanup
 # It will be only done, when Ceph is not already installed, so only in case of a fresh installation.
 - name: Cleanup old foreign Ceph-OSDs
-  when: 
+  when:
     - "pve_ceph_enhanced_enabled | default(false)"
     - "pve_ceph_clear_all_osds | default(false)"
   block:
     - name: Check if Ceph is installed
-      command: ceph --version
+      ansible.builtin.command: ceph --version
       register: ceph_check
       changed_when: false
       failed_when: false
 
     - name: Set fact if Ceph is installed
-      set_fact:
+      ansible.builtin.set_fact:
         ceph_installed: "{{ ceph_check.rc == 0 }}"
 
     - name: Warn if Ceph is already installed
@@ -112,7 +111,7 @@
       register: _ceph_disk_clear
       changed_when: true
       failed_when: "_ceph_disk_clear.rc != 0"
-        
+
 # to stop the playbook here for debugging
 # - name: Stop playbook execution here
 #   ansible.builtin.meta: end_play

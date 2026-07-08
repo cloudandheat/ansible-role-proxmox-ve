@@ -2,7 +2,7 @@
 - name: Upgrade the node instance
   ansible.builtin.apt:
     upgrade: dist
-    update_cache: yes
+    update_cache: true
 
 - name: Check if a reboot is required
   ansible.builtin.stat:
@@ -19,12 +19,10 @@
     msg: "This machine is undergoing a reboot, due to prepare a ceph upgrade"
   when: "_reboot_required is true"
 
-## 
-
 - name: Try to upgrade the node instance again, to validate if we are on the latest version.
   ansible.builtin.apt:
     upgrade: dist
-    update_cache: yes
+    update_cache: true
 
 - name: Check if a reboot is required after the potential os upgrade
   ansible.builtin.stat:
@@ -37,7 +35,7 @@
 
 - name: Fail if a reboot is required -> we should be on latest version, due to first os-upgrade
   ansible.builtin.assert:
-    that: 
+    that:
       - "_reboot_required_2 is false"
     fail_msg: |
       Reboot seems still to be required. This should not happen.

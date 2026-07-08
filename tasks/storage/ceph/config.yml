@@ -7,13 +7,13 @@
 
 - name: Apply custom Ceph configuration
   vars:
-    space: ' '
-    comma: ','
+    space: " "
+    comma: ","
     default_scope: "client"
     valid_scopes: "{{ ['global', 'client', 'osd', 'mon', 'mgr', 'mds'] }}"
     ignore_invalid: false
   when:
-    - "inventory_hostname == _ceph_init_node" 
+    - "inventory_hostname == _ceph_init_node"
     - "pve_ceph_config | length > 0"
   block:
     - name: Collect valid Ceph values
@@ -71,19 +71,18 @@
         - name: Normalize Ceph config values into list of named configs
           ansible.builtin.set_fact:
             # Normalize from [{<key>: <value>}] into [{'name': ..., 'value': ...}] form.
-            pve_ceph_config: "{{ pve_ceph_config | selectattr('name', 'defined')
-                              + (pve_ceph_config | rejectattr('name', 'defined')
-                                | map('dict2items', key_name='name') | flatten) }}"
+            pve_ceph_config: "{{ pve_ceph_config | selectattr('name', 'defined') + (pve_ceph_config | rejectattr('name', 'defined')
+              | map('dict2items', key_name='name') | flatten) }}"
           when: "pve_ceph_config | rejectattr('name', 'defined') | length > 0"
 
         - name: Initialize Ceph config values 'who' attribute
           ansible.builtin.set_fact:
             # If 'who' undefined or defined but == none -> replace with default_scope
-            pve_ceph_config: "{{ pve_ceph_config | selectattr('who', 'defined') | selectattr('who', '!=', none)
-                             + pve_ceph_config | selectattr('who', 'defined') | selectattr('who', '==', none) | map('combine', {'who': default_scope})
-                             + pve_ceph_config | selectattr('who', 'undefined') | map('combine', {'who': default_scope}) }}"
-          when: "pve_ceph_config | selectattr('who', 'defined') | selectattr('who', '==', none) | length > 0
-                or pve_ceph_config | selectattr('who', 'undefined') | length > 0"
+            pve_ceph_config: "{{ pve_ceph_config | selectattr('who', 'defined') | selectattr('who', '!=', none) + pve_ceph_config
+              | selectattr('who', 'defined') | selectattr('who', '==', none) | map('combine', {'who': default_scope}) + pve_ceph_config
+              | selectattr('who', 'undefined') | map('combine', {'who': default_scope}) }}"
+          when: "pve_ceph_config | selectattr('who', 'defined') | selectattr('who', '==', none) | length > 0 or pve_ceph_config
+            | selectattr('who', 'undefined') | length > 0"
 
         - name: Normalize Ceph config by indexing and removing duplicates
           block:
@@ -94,9 +93,8 @@
             - name: Index ceph configs, Remove duplicates
               ansible.builtin.set_fact:
                 # Take care of same name but different 'who' scope which is legit. This is 'filter by name AND who attribute'.
-                pve_ceph_config: "{{ pve_ceph_config | rejectattr('name', '==', item.name)
-                                 + pve_ceph_config | selectattr('name', '==', item.name) | rejectattr('who', '==', item.who)
-                                 + [item | combine({'id': idx})] }}"
+                pve_ceph_config: "{{ pve_ceph_config | rejectattr('name', '==', item.name) + pve_ceph_config | selectattr('name',
+                  '==', item.name) | rejectattr('who', '==', item.who) + [item | combine({'id': idx})] }}"
               loop: "{{ _tmp_loop }}"
               loop_control:
                 index_var: idx
@@ -124,26 +122,26 @@
           ansible.builtin.assert:
             that: "item.name in _ceph_config_ls"
             msg: "Ceph config 'name' of {{ item }} is invalid!"
-          loop: "{{ pve_ceph_config | default([],true) }}"
+          loop: "{{ pve_ceph_config | default([], true) }}"
 
         - name: Ensure correct 'who' scope for Ceph config
           ansible.builtin.assert:
             that: "item.who in valid_scopes"
             msg: "'who' scope of Ceph config variable {{ item }} is invalid!"
-          loop: "{{ pve_ceph_config | default([],true) }}"
+          loop: "{{ pve_ceph_config | default([], true) }}"
 
     - name: Collect Ceph config default values
       block:
         - name: Query config defaults for config keys
           ansible.builtin.command: "ceph config help {{ item.name }} --format json"
           register: _ceph_config_help_raws
-          loop: "{{ pve_ceph_config | default([],true) }}"
+          loop: "{{ pve_ceph_config | default([], true) }}"
           changed_when: false
 
         - name: Extract config values metadata
           ansible.builtin.set_fact:
-            _ceph_config_defaults:
-              "{{ _ceph_config_defaults | default([]) + [item.stdout | from_json | combine({'separator': none})] }}"
+            _ceph_config_defaults: "{{ _ceph_config_defaults | default([]) + [item.stdout | from_json | combine({'separator':
+              none})] }}"
           loop: "{{ _ceph_config_help_raws.results | default([]) }}"
           loop_control:
             label: "{{ item.item }}"
@@ -154,10 +152,8 @@
 
         - name: Normalize comma separated string list config default values
           ansible.builtin.set_fact:
-            _ceph_config_defaults:
-              "{{ _ceph_config_defaults
-              | rejectattr('name', '==', item.name)
-              + [item | combine({'default': item.default | split(comma) | map('trim'), 'separator': comma, 'type': 'list'})] }}"
+            _ceph_config_defaults: "{{ _ceph_config_defaults | rejectattr('name', '==', item.name) + [item | combine({'default':
+              item.default | split(comma) | map('trim'), 'separator': comma, 'type': 'list'})] }}"
           loop: "{{ _tmp_loop }}"
           when:
             - "item.default is string"
@@ -165,10 +161,8 @@
 
         - name: Normalize space separated string list config default values
           ansible.builtin.set_fact:
-            _ceph_config_defaults:
-              "{{ _ceph_config_defaults
-              | rejectattr('name', '==', item.name)
-              + [item | combine({'default': item.default | trim | split(space), 'separator': space, 'type': 'list'})] }}"
+            _ceph_config_defaults: "{{ _ceph_config_defaults | rejectattr('name', '==', item.name) + [item | combine({'default':
+              item.default | trim | split(space), 'separator': space, 'type': 'list'})] }}"
           loop: "{{ _tmp_loop }}"
           when:
             - "item.default is string"
@@ -190,13 +184,11 @@
           vars:
             default_item: "{{ (_ceph_config_defaults | selectattr('name', '==', item.name) | first) }}"
             list_sep: "{{ item.separator | default(default_item.separator, true) }}"
-          loop: "{{ pve_ceph_config | default([],true) }}"
+          loop: "{{ pve_ceph_config | default([], true) }}"
           when: # Filter out all strings that start with + or - (relative values) or contain space or comma (are string lists).
             - "item.value is not iterable or item.value is string"
-            - "item.value is not string
-              or not (item.value.startswith('+')
-                or item.value.startswith('-')
-                or [comma,  space] | intersect(item.value | trim | list) | length > 0)" # => item.value contains comma or space
+            - "item.value is not string or not (item.value.startswith('+') or item.value.startswith('-') or [comma,  space]
+              | intersect(item.value | trim | list) | length > 0)" # => item.value contains comma or space
 
         - name: Collect and separate non-list relative string config values
           ansible.builtin.set_fact:
@@ -207,7 +199,7 @@
             default_item: "{{ (_ceph_config_defaults | selectattr('name', '==', item.name) | first) }}"
             list_sep: "{{ item.separator | default(default_item.separator, true) }}"
             updated_item: "{{ {'value': none, 'add': addition, 'rem': subtraction, 'separator': list_sep} }}"
-          loop: "{{ pve_ceph_config | default([],true) }}"
+          loop: "{{ pve_ceph_config | default([], true) }}"
           when:
             - "item.value is string"
             - "item.value.startswith('+') or item.value.startswith('-')"
@@ -215,17 +207,17 @@
 
         - name: Collect and normalize comma separated string list config values into lists
           ansible.builtin.set_fact:
-            _ceph_configs: "{{ _ceph_configs
-                           + [item | combine({'value': item.value | split(comma) | map('trim'), 'separator': comma})] }}"
-          loop: "{{ pve_ceph_config | default([],true) }}"
+            _ceph_configs: "{{ _ceph_configs + [item | combine({'value': item.value | split(comma) | map('trim'), 'separator':
+              comma})] }}"
+          loop: "{{ pve_ceph_config | default([], true) }}"
           when:
             - "item.value is string"
             - "comma in (item.value | list)"
 
         - name: Collect and normalize space separated string list config values into lists
           ansible.builtin.set_fact:
-            _ceph_configs: "{{ _ceph_configs
-                           + [item | combine({'value': item.value | trim | split(space), 'separator': space})] }}"
+            _ceph_configs: "{{ _ceph_configs + [item | combine({'value': item.value | trim | split(space), 'separator': space})]
+              }}"
           loop: "{{ pve_ceph_config | default([], true) }}"
           when:
             - "item.value is string"
@@ -237,11 +229,11 @@
 
         - name: Collect and separate absolute and relative list config values
           ansible.builtin.set_fact:
-            _ceph_configs: "{{ _ceph_configs | rejectattr('id', '==', item.id)
-                            + [item | combine({'value': absolute_values, 'add': additions, 'rem': subtractions})] }}"
+            _ceph_configs: "{{ _ceph_configs | rejectattr('id', '==', item.id) + [item | combine({'value': absolute_values,
+              'add': additions, 'rem': subtractions})] }}"
           vars:
-            absolute_values: "{{ item.value | reject('string')
-                           + (item.value | select('string') | reject('match', '^-') | reject('match', '^\\+')) | default(none, true) }}"
+            absolute_values: "{{ item.value | reject('string') + (item.value | select('string') | reject('match', '^-') |
+              reject('match', '^\\+')) | default(none, true) }}"
             additions: "{{ item.value | select('string') | select('match', '^\\+') | map('regex_replace', '^\\+', '') }}"
             subtractions: "{{ item.value | select('string') | select('match', '^-') | map('regex_replace', '^-', '') }}"
           loop: "{{ _tmp_loop }}"
@@ -256,8 +248,8 @@
 
         - name: Reset value to default if no absolute value is defined
           ansible.builtin.set_fact:
-            _ceph_configs: "{{ _ceph_configs | rejectattr('id', '==', item.id)
-                              + [item | combine({'value': default_item.default})] }}"
+            _ceph_configs: "{{ _ceph_configs | rejectattr('id', '==', item.id) + [item | combine({'value': default_item.default})]
+              }}"
           vars:
             default_item: "{{ (_ceph_config_defaults | selectattr('name', '==', item.name) | first) }}"
           loop: "{{ _tmp_loop }}"
@@ -269,8 +261,8 @@
 
         - name: Add relative Ceph config value declarations
           ansible.builtin.set_fact:
-            _ceph_configs: "{{ _ceph_configs | rejectattr('id', '==', item.id)
-                           + [item | combine({'value': (item.value | default([], true) + item.add) | unique})] }}"
+            _ceph_configs: "{{ _ceph_configs | rejectattr('id', '==', item.id) + [item | combine({'value': (item.value | default([],
+              true) + item.add) | unique})] }}"
           loop: "{{ _tmp_loop }}"
           when: "item.add | default([]) | length > 0"
 
@@ -280,15 +272,15 @@
 
         - name: Remove relative Ceph config value declarations
           ansible.builtin.set_fact:
-            _ceph_configs: "{{ _ceph_configs | rejectattr('id', '==', item.id)
-                           + [item | combine({'value': item.value | default([], true) | difference(item.rem)})] }}"
+            _ceph_configs: "{{ _ceph_configs | rejectattr('id', '==', item.id) + [item | combine({'value': item.value | default([],
+              true) | difference(item.rem)})] }}"
           loop: "{{ _tmp_loop }}"
           when: "item.rem | default([]) | length > 0"
 
     - name: Prepare iterable Ceph config values
       ansible.builtin.set_fact:
-        _ceph_configs: "{{ _ceph_configs | rejectattr('id', '==', item.id)
-                       + [item | combine({'value': item.value | join(item.separator)})] }}"
+        _ceph_configs: "{{ _ceph_configs | rejectattr('id', '==', item.id) + [item | combine({'value': item.value | join(item.separator)})]
+          }}"
       loop: "{{ _ceph_configs }}"
       when:
         - "item.value is iterable"
@@ -297,8 +289,7 @@
 
     - name: Prepare string Ceph config values
       ansible.builtin.set_fact:
-        _ceph_configs: "{{ _ceph_configs | rejectattr('id', '==', item.id)
-                       + [item | combine({'value': '\"\"'})] }}"
+        _ceph_configs: "{{ _ceph_configs | rejectattr('id', '==', item.id) + [item | combine({'value': '\"\"'})] }}"
       loop: "{{ _ceph_configs }}"
       when:
         - "item.value is string"
@@ -309,7 +300,6 @@
         msg: "_ceph_configs: {{ _ceph_configs | default('UNDEF') }}"
 
     - name: Apply Ceph config values
-      ansible.builtin.command:
-        "ceph config set {{ item.who }} {{ item.name }} {{ item.value }}"
+      ansible.builtin.command: "ceph config set {{ item.who }} {{ item.name }} {{ item.value }}"
       loop: "{{ _ceph_configs }}"
       changed_when: true

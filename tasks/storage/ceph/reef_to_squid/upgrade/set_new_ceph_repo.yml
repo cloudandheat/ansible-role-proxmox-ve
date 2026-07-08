@@ -1,9 +1,8 @@
 ---
-
-- name: gather all apt sources files used by host
+- name: Gather all apt sources files used by host
   ansible.builtin.find:
     paths: "/etc/apt"
-    patterns: '*.list'
+    patterns: "*.list"
     recurse: true
   register: _apt_list_files_raw
 
@@ -12,7 +11,7 @@
     _apt_list_files: "{{ _apt_list_files_raw | json_query(jquery) }}"
   vars:
     jquery: "files[*].path"
-  
+
 - name: Do regex replace for the ceph version
   ansible.builtin.replace:
     path: "{{ item }}"

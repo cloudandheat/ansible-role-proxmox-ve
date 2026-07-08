@@ -1,8 +1,8 @@
 ---
 - name: Ensure an init node is established
   ansible.builtin.set_fact:
-    _init_node:
-      "{{ pve_cluster_enabled | ternary(pve_cluster_initiator_host | default(groups[pve_group][0], true), inventory_hostname) }}"
+    _init_node: "{{ pve_cluster_enabled | ternary(pve_cluster_initiator_host | default(groups[pve_group][0], true), inventory_hostname)
+      }}"
   when: "_init_node | default(false, true) is false"
 
 - name: Manage PVE storage
@@ -13,7 +13,8 @@
         - name: Normalize PVE storage parameter into list of dicts from mapping
           ansible.builtin.set_fact:
             # transform from {<storage>:{<setting>: <value>, …}} into [{'storage':…, <setting>: <value>, …}]
-            pve_storages: "{{ pve_storages | dict2items | json_query('[].merge({storage: key}, not_null(value, {storage: key}))') }}"
+            pve_storages: "{{ pve_storages | dict2items | json_query('[].merge({storage: key}, not_null(value, {storage: key}))')
+              }}"
           when: "pve_storages is mapping"
 
         - name: Normalize PVE storage parameter into empty list if none
@@ -76,7 +77,7 @@
           loop_control:
             label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
           # NOTICE: For clean log output, removing 'local' storage has effect but is recreated automatically.
-          when: 
+          when:
             - "item.storage != 'local'"
             - "item.storage != 'local-btrfs'"
           changed_when: true
@@ -97,54 +98,57 @@
           loop: "{{ _pve_storages_chg_type }}"
           loop_control:
             label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
-          register: _pve_storage_recreate_return 
+          register: _pve_storage_recreate_return
           changed_when: true
 
         - name: Create missing PVE storage definitions
-          ansible.builtin.command: "pvesh create /storage {{ item | dict2args(bool2int=true, quotes='') }} --output-format json"
+          ansible.builtin.command: "pvesh create /storage {{ item | dict2args(bool2int=true, quotes='') }} --output-format
+            json"
           loop: "{{ pve_storages | rejectattr('storage', 'in', _pve_storages | map(attribute='storage')) }}"
           loop_control:
             label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
           # NOTICE: StorageID 'local' is normally already defined, cannot be created.
           when: "item.storage != 'local'"
-          register: _pve_storage_create_return 
+          register: _pve_storage_create_return
           changed_when: true
 
     - name: Modify existing PVE storage definitions
       when: "inventory_hostname == _init_node"
       tags: storage_pve_modify
       vars:
-        unsupported_params: "{{ ['authsupported', 'base', 'export', 'iscsiprovider', 'path', 'portal',
-                               'share', 'server', 'server2', 'target', 'thinpool', 'type', 'vgname', 'volume'] }}"
+        unsupported_params:
+          - 'authsupported'
+          - 'base'
+          - 'export'
+          - 'iscsiprovider'
+          - 'path'
+          - 'portal'
+          - 'share'
+          - 'server'
+          - 'server2'
+          - 'target'
+          - 'thinpool'
+          - 'type'
+          - 'vgname'
+          - 'volume'
         # NOTICE: Different types (don't) support different params, this maps types to unsupported params for modification.
         # Extend this map's values if additional errors upon modification with params/attributes occur.
-        unsup_params_map: "{{ {'btrfs': unsupported_params,
-                              'cephfs': unsupported_params + ['shared'],
-                              'cifs': unsupported_params + ['shared'],
-                              'dir': unsupported_params,
-                              'esxi': unsupported_params + ['shared'],
-                              'glusterfs': unsupported_params + ['shared'],
-                              'iscsi': unsupported_params + ['shared'],
-                              'iscsidirect': unsupported_params + ['shared'],
-                              'lvm': unsupported_params,
-                              'lvmthin': unsupported_params,
-                              'nfs': unsupported_params + ['shared'],
-                              'pbs': unsupported_params + ['shared'],
-                              'rbd': unsupported_params + ['shared'],
-                              'zfs': unsupported_params + ['shared'],
-                              'zfspool': unsupported_params} }}"
+        unsup_params_map: "{{ {'btrfs': unsupported_params, 'cephfs': unsupported_params + ['shared'], 'cifs': unsupported_params
+          + ['shared'], 'dir': unsupported_params, 'esxi': unsupported_params + ['shared'], 'glusterfs': unsupported_params
+          + ['shared'], 'iscsi': unsupported_params + ['shared'], 'iscsidirect': unsupported_params + ['shared'], 'lvm': unsupported_params,
+          'lvmthin': unsupported_params, 'nfs': unsupported_params + ['shared'], 'pbs': unsupported_params + ['shared'], 'rbd':
+          unsupported_params + ['shared'], 'zfs': unsupported_params + ['shared'], 'zfspool': unsupported_params} }}"
       block:
         - name: Collect and normalize PVE storage definitions to modify
           ansible.builtin.set_fact:
             # All declared storage definitions already existing
-            _pve_storages_mod: "{{ pve_storages
-                                | selectattr('storage', 'in', _pve_storages | map(attribute='storage'))
-                                | rejectattr('storage', 'in', _pve_storages_chg_type | map(attribute='storage')) }}"
-
+            _pve_storages_mod: "{{ pve_storages | selectattr('storage', 'in', _pve_storages | map(attribute='storage')) |
+              rejectattr('storage', 'in', _pve_storages_chg_type | map(attribute='storage')) }}"
 
         - name: Collect PVE storage definition parameters to delete
           ansible.builtin.set_fact:
-            _pve_storages_attr_rem: "{{ _pve_storages_attr_rem | default([]) + [{'storage': item.storage, 'delete': attr_rem}] }}"
+            _pve_storages_attr_rem: "{{ _pve_storages_attr_rem | default([]) + [{'storage': item.storage, 'delete': attr_rem}]
+              }}"
           vars:
             exst_sto: "{{ _pve_storages | ansible.utils.remove_keys(target=unsup_params_map[item.type]) }}"
             sto_item: "{{ exst_sto | selectattr('storage', '==', item.storage) | first }}"
@@ -155,8 +159,8 @@
           when: "attr_rem | length > 0"
 
         - name: Reset non-declared PVE storage definition parameters
-          ansible.builtin.command:
-            "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quotes='', reject_keys=['storage']) }}"
+          ansible.builtin.command: "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quotes='', reject_keys=['storage'])
+            }}"
           loop: "{{ _pve_storages_attr_rem | default([]) }}"
           changed_when: true
 
@@ -171,8 +175,8 @@
             # pve_eisting_storages not looks like this: ['local', 'local-lvm', 'backup']
 
         - name: Create PVE storage definition
-          ansible.builtin.command:
-            "pvesh create /storage {{ item | dict2args(bool2int=true, quote_values=false, quotes='') }}"
+          ansible.builtin.command: "pvesh create /storage {{ item | dict2args(bool2int=true, quote_values=false, quotes='')
+            }}"
           loop: "{{ _pve_storages_mod }}"
           loop_control:
             label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
@@ -180,8 +184,8 @@
           changed_when: true
 
         - name: Modify PVE storage definition parameters
-          ansible.builtin.command:
-            "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quote_values=false, quotes='', reject_keys=reject_keys) }}"
+          ansible.builtin.command: "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quote_values=false,
+            quotes='', reject_keys=reject_keys) }}"
           vars:
             reject_keys: >-
               {{
@@ -194,26 +198,26 @@
             label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
           when: item.storage in pve_existing_storages
           changed_when: true
-        
+
         - name: Handling the encryption keys for pbs storages, due to allowed special (and useful) value of 'autogen'
           block:
             - name: Applying attribute 'encryption-key' if not 'autogen'
-              ansible.builtin.command:
-                "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quote_values=false, quotes='', select_keys=['encryption-key']) }} --output-format json"
-#                "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quotes='\"', select_keys=['encryption-key']) }} --output-format json"
+              ansible.builtin.command: "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quote_values=false,
+                quotes='', select_keys=['encryption-key']) }} --output-format json"
+              #                "pvesh set /storage/{{ item.storage }} {{ item | dict2args(bool2int=true, quotes='\"', select_keys=['encryption-key']) }} --output-format json"
               loop: "{{ _pve_storages_mod }}"
               loop_control:
                 label: "{{ item | ansible.utils.remove_keys(target=['password']) }}"
               changed_when: true
-              register: _pve_pbs_encryption_modify_return 
-              when: 
-                - item['encryption-key'] is defined and item['encryption-key'] != 'autogen' 
+              register: _pve_pbs_encryption_modify_return
+              when:
+                - item['encryption-key'] is defined and item['encryption-key'] != 'autogen'
 
-    
             - name: Persists the created and changed storage configuration to persist the created/set encryption keys
               ansible.builtin.lineinfile:
                 create: true
                 path: "{{ pve_pbs_encryption_keys_preserve.file | default(playbook_dir + '/pbs.keys') }}"
+                mode: "644"
                 insertafter: "EOF"
                 line: |
                   ## Date: {{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}
@@ -223,7 +227,7 @@
                   ## Created Storages
                   {{ _pve_storage_create_return.results }}
                   ## Modified PBS Storages
-                  {{ _pve_pbs_encryption_modify_return.results  }} 
+                  {{ _pve_pbs_encryption_modify_return.results }}
               delegate_to: "{{ pve_pbs_encryption_keys_preserve.host | default('localhost') }}"
               become: false
               when:

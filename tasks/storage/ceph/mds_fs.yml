@@ -11,8 +11,8 @@
 
         - name: Normalize Ceph MDS parameter into list of dict from list
           ansible.builtin.set_fact:
-            pve_ceph_mds_nodes: "{{ pve_ceph_mds_nodes | select('mapping')
-                                  + pve_ceph_mds_nodes | reject('mapping') | json_query('[].{hostname: @, name: @}') }}"
+            pve_ceph_mds_nodes: "{{ pve_ceph_mds_nodes | select('mapping') + pve_ceph_mds_nodes | reject('mapping') | json_query('[].{hostname:
+              @, name: @}') }}"
           when:
             - "pve_ceph_mds_nodes is iterable"
             - "pve_ceph_mds_nodes is not mapping"
@@ -20,9 +20,8 @@
 
         - name: Normalize Ceph MDS parameter to include name attribute
           ansible.builtin.set_fact:
-            pve_ceph_mds_nodes: "{{ pve_ceph_mds_nodes | selectattr('name', 'defined')
-                                  + pve_ceph_mds_nodes | rejectattr('name', 'defined')
-                                    | json_query('[].{hostname: hostname, name: hostname}') }}"
+            pve_ceph_mds_nodes: "{{ pve_ceph_mds_nodes | selectattr('name', 'defined') + pve_ceph_mds_nodes | rejectattr('name',
+              'defined') | json_query('[].{hostname: hostname, name: hostname}') }}"
           when:
             - "pve_ceph_mds_nodes is iterable"
             - "pve_ceph_mds_nodes is not mapping"
@@ -39,7 +38,8 @@
         - name: Normalize and resolve Ceph MDS parameter names and hostnames
           ansible.builtin.set_fact:
             # MDS names do not support dots and hostnames must be resolved to their inventory hostnames.
-            pve_ceph_mds_nodes: "{{ (pve_ceph_mds_nodes + [{'hostname': host_name, 'name': short_name, 'fqdn': host_fqdn}]) | unique }}"
+            pve_ceph_mds_nodes: "{{ (pve_ceph_mds_nodes + [{'hostname': host_name, 'name': short_name, 'fqdn': host_fqdn}])
+              | unique }}"
           vars:
             short_name: "{{ item.name | string | split('.') | first }}"
             # Try to resolve from ambiguous short hostname to inventory_hostname and ansible_fqdn
@@ -70,7 +70,8 @@
         - name: Normalize CephFS parameter into list of dicts from list
           ansible.builtin.set_fact:
             # transform from ["value",…, {<setting>:<value>,…}] into [{'name':<value>,…, <setting>: <value>,…}]
-            pve_ceph_fs: "{{ pve_ceph_fs | select('mapping') + pve_ceph_fs | reject('mapping') | json_query('[].{name: @}') }}"
+            pve_ceph_fs: "{{ pve_ceph_fs | select('mapping') + pve_ceph_fs | reject('mapping') | json_query('[].{name: @}')
+              }}"
           when:
             - "pve_ceph_fs is iterable"
             - "pve_ceph_fs is not mapping"
@@ -79,7 +80,8 @@
         - name: Normalize CephFS parameter into list of dicts from mapping
           ansible.builtin.set_fact:
             # transform from {<name>:{<setting>: <value>, …}} into [{'name':…, <setting>: <value>, …}]
-            pve_ceph_fs: "{{ pve_ceph_fs | dict2items | json_query('[].merge({name: key}, not_null(value, {name: key}))') }}"
+            pve_ceph_fs: "{{ pve_ceph_fs | dict2items | json_query('[].merge({name: key}, not_null(value, {name: key}))')
+              }}"
           when: "pve_ceph_fs is mapping"
 
         - name: Normalize CephFS parameter into empty list if none
@@ -110,7 +112,8 @@
         - name: Ensure each MDS name is valid
           ansible.builtin.assert:
             that: "item.name is match('^[a-zA-Z0-9]([a-zA-Z0-9\\-]*[a-zA-Z0-9])?$')"
-            msg: "MDS declaration '{{ item }}' name is invalid. MDS name must only contain [a-zA-Z0-9] and '-' (not at start or end)!"
+            msg: "MDS declaration '{{ item }}' name is invalid. MDS name must only contain [a-zA-Z0-9] and '-' (not at start
+              or end)!"
           loop: "{{ pve_ceph_mds_nodes }}"
 
         - name: Ensure MDS count is greater than FS count
@@ -140,8 +143,7 @@
 
             - name: Normalize MDS metadata query, collect cluster members
               ansible.builtin.set_fact:
-                _ceph_mds_metadata:
-                  "{{ _ceph_mds_metadata_raw.stdout | from_json }}"
+                _ceph_mds_metadata: "{{ _ceph_mds_metadata_raw.stdout | from_json }}"
 
         - name: Collect and remove non-declared MDS
           tags: ceph_mds_remove
@@ -153,15 +155,15 @@
 
             - name: Find MDS sections and missing MDS in PVE Ceph conf file
               ansible.builtin.set_fact:
-                _ceph_conf_missing_mds:
-                  "{{ _pve_ceph_conf_raw.content | b64decode | regex_findall('\\[mds\\.(.+)\\]')
-                      | reject('in', (_ceph_mds_metadata | map(attribute='name'))) }}"
+                _ceph_conf_missing_mds: "{{ _pve_ceph_conf_raw.content | b64decode | regex_findall('\\[mds\\.(.+)\\]') | reject('in',
+                  (_ceph_mds_metadata | map(attribute='name'))) }}"
 
             - name: Collect non-declared MDS
               ansible.builtin.set_fact:
                 _ceph_undeclared_mds: "{{ _ceph_undeclared_mds + [item] }}"
               loop: "{{ _ceph_mds_metadata }}"
-              when: "pve_ceph_mds_nodes | selectattr('fqdn', '==', item.hostname) | selectattr('name', '==', item.name) | length == 0"
+              when: "pve_ceph_mds_nodes | selectattr('fqdn', '==', item.hostname) | selectattr('name', '==', item.name) |
+                length == 0"
 
             - name: Ensure non-declared MDS services are stopped
               ansible.builtin.systemd:
@@ -184,7 +186,7 @@
               when: "item.hostname == ansible_fqdn"
               changed_when: true
 
-              # TODO command needs mds gid, extract it from "ceph mds stat"
+# TODO command needs mds gid, extract it from "ceph mds stat"
 #            - name: Remove non-declared MDS from Ceph
 #              ansible.builtin.command: "ceph mds rm {{ item.name }}"
 #              loop: "{{ _ceph_undeclared_mds }}"
@@ -194,7 +196,7 @@
 #              changed_when: true
 
             - name: Ensure MDS are removed from PVE ceph conf
-              ansible.builtin.ini_file:
+              community.general.ini_file:
                 path: "/etc/pve/ceph.conf"
                 section: "mds.{{ item }}"
                 state: absent
@@ -221,7 +223,7 @@
               ansible.builtin.command: "pveceph mds create {{ item | dict2args(reject_keys=['hostname', 'fqdn']) }}"
               register: _ceph_mds_create_raws
               args:
-                creates: '/var/lib/ceph/mds/ceph-{{ item.name }}'
+                creates: "/var/lib/ceph/mds/ceph-{{ item.name }}"
               loop: "{{ pve_ceph_mds_nodes }}"
               changed_when: true
               when:
@@ -265,8 +267,7 @@
 
             - name: Normalize MDS metadata query, collect cluster members
               ansible.builtin.set_fact:
-                _ceph_mds_metadata:
-                  "{{ _ceph_mds_metadata_raw.stdout | from_json }}"
+                _ceph_mds_metadata: "{{ _ceph_mds_metadata_raw.stdout | from_json }}"
 
             - name: Collect existing CephFS filesystems
               ansible.builtin.command: "ceph fs ls --format json"
@@ -284,12 +285,8 @@
 
             - name: Extract CephFS storage fs names
               ansible.builtin.set_fact:
-                _cephfs_pve_storages:
-                  # NOTICE: can fail on differently created CephFS storages, missing the 'fs-name' attribute
-                  "{{ _pvesh_get_storage_raw.stdout | from_json
-                    | selectattr('type', '==', 'cephfs')
-                    | selectattr('fs-name', 'defined')
-                    | map(attribute='storage') }}"
+                _cephfs_pve_storages: "{{ _pvesh_get_storage_raw.stdout | from_json | selectattr('type', '==', 'cephfs') |
+                  selectattr('fs-name', 'defined') | map(attribute='storage') }}"
 
             - name: Collect non-declared CephFS filesystems
               ansible.builtin.set_fact:
@@ -299,7 +296,7 @@
 
         - name: Collect and remove non-declared CephFS fs
           tags: ceph_fs_remove
-          when: 
+          when:
             - "_undeclared_cephfs | length > 0"
           block:
             - name: Disable PVE CephFS fs storage
@@ -329,8 +326,8 @@
               register: _storage_umount_raw
               delegate_to: "{{ item[0] | default(omit) }}"
               # umount is needed twice sometimes
-              loop: "{{ groups[pve_group] | product(_undeclared_cephfs)
-                      + groups[pve_group] | product(_undeclared_cephfs) }}"
+              loop: "{{ groups[pve_group] | product(_undeclared_cephfs) + groups[pve_group] | product(_undeclared_cephfs)
+                }}"
               when: "item[1].name in _cephfs_pve_storages"
               changed_when: true
               failed_when: "_storage_umount_raw.rc not in [0, 32]" # rc 32 == already umounted
@@ -367,7 +364,8 @@
           tags: ceph_fs_create
           block:
             - name: Create CephFS filesystem
-              ansible.builtin.command: "pveceph fs create {{ item | dict2args(reject_keys=['auth', 'pools', 'meta_pool']) }}"
+              ansible.builtin.command: "pveceph fs create {{ item | dict2args(reject_keys=['auth', 'pools', 'meta_pool'])
+                }}"
               loop: "{{ pve_ceph_fs }}"
               changed_when: true
               when: "item.name not in (_ceph_fs_ls | map(attribute='name'))"
@@ -400,8 +398,7 @@
               register: _storage_umount_raw
               delegate_to: "{{ item[0] }}"
               # umount is needed twice sometimes
-              loop: "{{ groups[pve_group] | product(pve_ceph_fs)
-                      + groups[pve_group] | product(pve_ceph_fs) }}"
+              loop: "{{ groups[pve_group] | product(pve_ceph_fs) + groups[pve_group] | product(pve_ceph_fs) }}"
               when:
                 - "item[1].name in _cephfs_pve_storages"
                 - "_ceph_fs_ls | selectattr('name', '==', item[1].name) | length > 0"
@@ -463,8 +460,8 @@
               block:
                 # TODO honour 'pg_num' attribute on pve_ceph_fs and merge with pve_ceph_fs.pools.pg_num attribute if existing and required
                 - name: Set CephFS fs data pools settings
-                  ansible.builtin.command:
-                    "pveceph pool set {{ item[1] }} {{ pools_set | dict2args(bool2int=true, reject_keys=unsupported_args) }}"
+                  ansible.builtin.command: "pveceph pool set {{ item[1] }} {{ pools_set | dict2args(bool2int=true, reject_keys=unsupported_args)
+                    }}"
                   vars:
                     pools_set: "{{ pve_ceph_fs | json_query(query_str) }}"
                     query_str: "[?name == '{{ item[0] }}'].pools | [0]"
@@ -474,8 +471,8 @@
                   changed_when: true
 
                 - name: Set CephFS fs metadata pool settings
-                  ansible.builtin.command:
-                    "pveceph pool set {{ item.metadata_pool }} {{ mpool_set | dict2args(bool2int=true, reject_keys=unsupported_args) }}"
+                  ansible.builtin.command: "pveceph pool set {{ item.metadata_pool }} {{ mpool_set | dict2args(bool2int=true,
+                    reject_keys=unsupported_args) }}"
                   vars:
                     mpool_set: "{{ pve_ceph_fs | json_query(query_str) }}"
                     query_str: "[?name == '{{ item.name }}'].meta_pool | [0]"
@@ -485,7 +482,8 @@
                   changed_when: true
 
                 - name: Set CephFS fs datapool quotas
-                  ansible.builtin.command: "ceph osd pool set-quota {{ item[1] }} max_bytes {{ (quota | float * 1073741824) | round | int }}"
+                  ansible.builtin.command: "ceph osd pool set-quota {{ item[1] }} max_bytes {{ (quota | float * 1073741824)
+                    | round | int }}"
                   vars:
                     quota: "{{ pve_ceph_fs | json_query(query_str) }}"
                     query_str: "[?name == '{{ item[0] }}'].pools.quota | [0]"
@@ -508,16 +506,17 @@
                           # transform {'name': <cephfs>, 'pools'.'config': [{'name': <conf name>, 'value': <conf value>}, …, {<conf name>: <conf value>}, …]}
                           # into [{'pool': <cephfs data pool x>, 'name': <conf name>, 'value': <conf value>}, …]
                           ansible.builtin.set_fact:
-                            _pve_ceph_fs_pools_config: "{{ _pve_ceph_fs_pools_config
-                                                         + (conf_maps_w_n_v | map('combine', {'pool': item[1]}))
-                                                         + (conf_maps_other | map('dict2items', key_name='name')
-                                                           | flatten | map('combine', {'pool': item[1]})) }}"
+                            _pve_ceph_fs_pools_config: "{{ _pve_ceph_fs_pools_config + (conf_maps_w_n_v | map('combine', {'pool':
+                              item[1]})) + (conf_maps_other | map('dict2items', key_name='name') | flatten | map('combine',
+                              {'pool': item[1]})) }}"
                           vars:
                             match_cephfs: "{{ pve_ceph_fs | selectattr('name', '==', item[0]) }}"
                             decl_ceph_fs: "{{ match_cephfs | first }}"
                             conf_maps: "{{ decl_ceph_fs.pools.config | default([]) | select('mapping') }}"
-                            conf_maps_w_n_v: "{{ conf_maps | selectattr('name', 'defined') | selectattr('value', 'defined') }}"
-                            conf_maps_other: "{{ conf_maps | rejectattr('name', 'defined') | rejectattr('value', 'defined') }}"
+                            conf_maps_w_n_v: "{{ conf_maps | selectattr('name', 'defined') | selectattr('value', 'defined')
+                              }}"
+                            conf_maps_other: "{{ conf_maps | rejectattr('name', 'defined') | rejectattr('value', 'defined')
+                              }}"
                           loop: "{{ _ceph_fs_data_pools }}"
                           when:
                             - "match_cephfs | length > 0"
@@ -527,9 +526,8 @@
                           # transform {'name': <cephfs>, 'pools'.'config': {<conf name>: <conf value>, …}}
                           # into [{'pool': <cephfs data pool x>, 'name': <conf name>, 'value': <conf value>}, …]
                           ansible.builtin.set_fact:
-                            _pve_ceph_fs_pools_config: "{{ _pve_ceph_fs_pools_config
-                                                         + decl_ceph_fs.pools.config | dict2items(key_name='name')
-                                                         | map('combine', {'pool': item[1]}) }}"
+                            _pve_ceph_fs_pools_config: "{{ _pve_ceph_fs_pools_config + decl_ceph_fs.pools.config | dict2items(key_name='name')
+                              | map('combine', {'pool': item[1]}) }}"
                           vars:
                             match_cephfs: "{{ pve_ceph_fs | selectattr('name', '==', item[0]) }}"
                             decl_ceph_fs: "{{ match_cephfs | first }}"
@@ -542,16 +540,17 @@
                           # transform {'name': <cephfs>, 'meta_pool'.'config': [{'name': <name>, 'value': <value>}, …, {<name>: <value>}, …]}
                           # into [{'pool': <cephfs metadata pool>, 'name': <conf name>, 'value': <conf value>}, …]
                           ansible.builtin.set_fact:
-                            _pve_ceph_fs_pools_config: "{{ _pve_ceph_fs_pools_config
-                                                         + (conf_maps_w_n_v | map('combine', {'pool': item.metadata_pool}))
-                                                         + (conf_maps_other | map('dict2items', key_name='name')
-                                                           | flatten | map('combine', {'pool': item.metadata_pool})) }}"
+                            _pve_ceph_fs_pools_config: "{{ _pve_ceph_fs_pools_config + (conf_maps_w_n_v | map('combine', {'pool':
+                              item.metadata_pool})) + (conf_maps_other | map('dict2items', key_name='name') | flatten | map('combine',
+                              {'pool': item.metadata_pool})) }}"
                           vars:
                             match_cephfs: "{{ pve_ceph_fs | selectattr('name', '==', item.name) }}"
                             decl_ceph_fs: "{{ match_cephfs | first }}"
                             conf_maps: "{{ decl_ceph_fs.meta_pool.config | default([]) | select('mapping') }}"
-                            conf_maps_w_n_v: "{{ conf_maps | selectattr('name', 'defined') | selectattr('value', 'defined') }}"
-                            conf_maps_other: "{{ conf_maps | rejectattr('name', 'defined') | rejectattr('value', 'defined') }}"
+                            conf_maps_w_n_v: "{{ conf_maps | selectattr('name', 'defined') | selectattr('value', 'defined')
+                              }}"
+                            conf_maps_other: "{{ conf_maps | rejectattr('name', 'defined') | rejectattr('value', 'defined')
+                              }}"
                           loop: "{{ _ceph_fs_ls }}"
                           when:
                             - "match_cephfs | length > 0"
@@ -561,9 +560,8 @@
                           # transform {'name': <cephfs>, 'meta_pool'.'config': {<conf name>: <conf value>, …}}
                           # into [{'pool': <cephfs metadata pool>, 'name': <conf name>, 'value': <conf value>}, …]
                           ansible.builtin.set_fact:
-                            _pve_ceph_fs_pools_config: "{{ _pve_ceph_fs_pools_config
-                                                         + decl_ceph_fs.meta_pool.config | dict2items(key_name='name')
-                                                         | map('combine', {'pool': item.metadata_pool}) }}"
+                            _pve_ceph_fs_pools_config: "{{ _pve_ceph_fs_pools_config + decl_ceph_fs.meta_pool.config | dict2items(key_name='name')
+                              | map('combine', {'pool': item.metadata_pool}) }}"
                           vars:
                             match_cephfs: "{{ pve_ceph_fs | selectattr('name', '==', item.name) }}"
                             decl_ceph_fs: "{{ match_cephfs | first }}"
@@ -587,8 +585,8 @@
                         - name: Extract CephFS RBD pool config overrides
                           ansible.builtin.set_fact:
                             # _rbd_pool_configs: [{'pool': <pool>, 'name': <conf name>, 'value': <conf value>, 'source': 'pool'}, …]
-                            _rbd_pool_configs: "{{ _rbd_pool_configs
-                                                + item.stdout | from_json | selectattr('source', '==', 'pool') | map('combine', {'pool': item.item}) }}"
+                            _rbd_pool_configs: "{{ _rbd_pool_configs + item.stdout | from_json | selectattr('source', '==',
+                              'pool') | map('combine', {'pool': item.item}) }}"
                           loop: "{{ _rbd_pool_config_ls_raws.results }}"
                           loop_control:
                             label: "{{ item.item }}"
@@ -600,7 +598,8 @@
                           vars:
                             curr_pool_conf: "{{ _rbd_pool_configs | selectattr('pool', '==', item.pool) }}"
                           loop: "{{ _pve_ceph_fs_pools_config }}"
-                          when: "curr_pool_conf | selectattr('name', '==', item.name) | selectattr('value', '==', (item.value | string)) | length == 0"
+                          when: "curr_pool_conf | selectattr('name', '==', item.name) | selectattr('value', '==', (item.value
+                            | string)) | length == 0"
                           changed_when: true
 
                     - name: Remove CephFS RBD pool config overrides
@@ -613,7 +612,6 @@
                           when: "curr_pool_conf | selectattr('name', '==', item.name) | length == 0"
                           changed_when: true
 
-
         # TODO find and invalidate removed auth keyrings
         - name: Manage external access to CephFS filesystems
           tags: ceph_fs_auth
@@ -622,10 +620,8 @@
             # TODO check and recreate keyring when permissions/caps change
             # TODO maybe adding 'osd allow rx pool={metadata_pool}' capabilities is needed
             - name: Create CephFS datapools user access
-              ansible.builtin.command:
-                "ceph auth get-or-create client.external.cephfs-{{ item[1] }}
-                  mon 'allow r' mds 'allow {{ fs_perm }}' osd 'allow {{ fs_perm }} pool={{ item[1] }}'
-                  {{ out_file }} --format json"
+              ansible.builtin.command: "ceph auth get-or-create client.external.cephfs-{{ item[1] }} mon 'allow r' mds 'allow
+                {{ fs_perm }}' osd 'allow {{ fs_perm }} pool={{ item[1] }}' {{ out_file }} --format json"
               register: _ext_ceph_fs_auth_raws
               vars:
                 cephfs: "{{ pve_ceph_fs | selectattr('name', '==', item[0]) | first }}"

@@ -15,9 +15,9 @@
         # TODO what to do if no quorum exists?
         - name: Remove non-declared PVE cluster nodes
           ansible.builtin.command: "pvecm delnode {{ item }}"
-#          vars:
-#            item_hostvars: "{{ groups[pve_group] | map('extract', hostvars) | json_query(query_str) }}"
-#            query_str: "[?ansible_hostname == '{{ item }}']"
+          #          vars:
+          #            item_hostvars: "{{ groups[pve_group] | map('extract', hostvars) | json_query(query_str) }}"
+          #            query_str: "[?ansible_hostname == '{{ item }}']"
           loop: "{{ _pve_cluster_nodes }}"
           # when item/node not in groups[pve_group] or item/node._pve_active_cluster is not defined
           # _pve_cluster_nodes always contains short hostnames (== ansible_hostname), so we need to resolve them.
@@ -33,9 +33,11 @@
         - name: Initialize a Proxmox cluster
           ansible.builtin.command: >-
             pvecm create {{ pve_cluster_clustername }}
-            --link0 {{ pve_cluster_addr0 }}{% if pve_cluster_addr0_priority | default(false, true) %},priority={{ pve_cluster_addr0_priority }}{% endif %}
+            --link0 {{ pve_cluster_addr0 }}{% if pve_cluster_addr0_priority | default(false, true) %},priority={{ pve_cluster_addr0_priority
+            }}{% endif %}
             {% if pve_cluster_addr1 | default(false, true) %}
-            --link1 {{ pve_cluster_addr1 }}{% if pve_cluster_addr1_priority | default(false, true) %},priority={{ pve_cluster_addr1_priority }}{% endif %}
+            --link1 {{ pve_cluster_addr1 }}{% if pve_cluster_addr1_priority | default(false, true) %},priority={{ pve_cluster_addr1_priority
+            }}{% endif %}
             {% endif %}
           args:
             creates: "/etc/pve/corosync.conf"
@@ -85,7 +87,8 @@
                 create: true
                 mode: "0600"
                 marker: "# {mark}: public host key for cluster join"
-                content: "{{ _pve_cluster_join_ip_address | ansible.utils.ipaddr('address') }},{{ hostvars[_init_node].inventory_hostname}},{{ hostvars[_init_node].ansible_hostname}},{{ hostvars[_init_node]._pve_ssh_public_key }}"
+                content: "{{ _pve_cluster_join_ip_address | ansible.utils.ipaddr('address') }},{{ hostvars[_init_node].inventory_hostname
+                  }},{{ hostvars[_init_node].ansible_hostname }},{{ hostvars[_init_node]._pve_ssh_public_key }}"
 
             - name: Hash the hostnames, to avoid join errors on security and privacy oriented pve servers
               ansible.builtin.command:
@@ -95,9 +98,11 @@
             - name: Add node to Proxmox cluster
               ansible.builtin.command: >-
                 pvecm add {{ _pve_cluster_join_ip_address }} --use_ssh
-                --link0 {{ pve_cluster_addr0 }}{% if pve_cluster_addr0_priority | default(false, true) %},priority={{ pve_cluster_addr0_priority }}{% endif %}
+                --link0 {{ pve_cluster_addr0 }}{% if pve_cluster_addr0_priority | default(false, true) %},priority={{ pve_cluster_addr0_priority
+                }}{% endif %}
                 {% if pve_cluster_addr1 | default(false, true) %}
-                --link1 {{ pve_cluster_addr1 }}{% if pve_cluster_addr1_priority | default(false, true) %},priority={{ pve_cluster_addr1_priority }}{% endif %}
+                --link1 {{ pve_cluster_addr1 }}{% if pve_cluster_addr1_priority | default(false, true) %},priority={{ pve_cluster_addr1_priority
+                }}{% endif %}
                 {% endif %}
               register: pvecm_add
               # Ensure that nodes join one-by-one, because cluster joins create a lock.

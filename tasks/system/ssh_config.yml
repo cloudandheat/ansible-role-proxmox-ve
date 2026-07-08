@@ -3,12 +3,8 @@
   block:
     - name: Collect list of SSH addresses
       ansible.builtin.set_fact:
-        pve_cluster_ssh_addrs:
-          "{{ pve_domain | default(false, true) | ternary([ansible_hostname + '.' + pve_domain], [ansible_fqdn])
-            + [ansible_hostname]
-            + [ansible_host]
-            + [pve_cluster_addr0]
-            + [pve_cluster_addr1] | ansible.utils.ipaddr() }}"
+        pve_cluster_ssh_addrs: "{{ pve_domain | default(false, true) | ternary([ansible_hostname + '.' + pve_domain], [ansible_fqdn])
+          + [ansible_hostname] + [ansible_host] + [pve_cluster_addr0] + [pve_cluster_addr1] | ansible.utils.ipaddr() }}"
 
     - name: Ensure root SSH directory exists
       ansible.builtin.file:
@@ -76,8 +72,8 @@
     - name: Ensure SSH config includes drop-in config for strict inlude rules
       ansible.builtin.lineinfile:
         dest: "/etc/ssh/ssh_config"
-        search_string: 'Include /etc/ssh/ssh_config.d/ssh_pve.conf'
-        line: 'Include /etc/ssh/ssh_config.d/ssh_pve.conf'
+        search_string: "Include /etc/ssh/ssh_config.d/ssh_pve.conf"
+        line: "Include /etc/ssh/ssh_config.d/ssh_pve.conf"
         state: present
         mode: "0644"
       when: pve_ssh_strict_include is true
@@ -86,8 +82,8 @@
     - name: Ensure SSH config includes drop-in config for permissive include rules
       ansible.builtin.lineinfile:
         dest: "/etc/ssh/ssh_config"
-        search_string: 'Include /etc/ssh/ssh_config.d/*.conf'
-        line: 'Include /etc/ssh/ssh_config.d/*.conf'
+        search_string: "Include /etc/ssh/ssh_config.d/*.conf"
+        line: "Include /etc/ssh/ssh_config.d/*.conf"
         state: present
         mode: "0644"
       when: pve_ssh_strict_include is false
@@ -103,8 +99,8 @@
     - name: Ensure SSH Daemon includes drop-in config for strict inlude rules
       ansible.builtin.lineinfile:
         dest: "/etc/ssh/sshd_config"
-        search_string: 'Include /etc/ssh/sshd_config.d/sshd_pve.conf'
-        line: 'Include /etc/ssh/sshd_config.d/sshd_pve.conf'
+        search_string: "Include /etc/ssh/sshd_config.d/sshd_pve.conf"
+        line: "Include /etc/ssh/sshd_config.d/sshd_pve.conf"
         state: present
         mode: "0644"
       when: pve_sshd_strict_include is true
@@ -113,8 +109,8 @@
     - name: Ensure SSH Daemon includes drop-in config for permissive include rules
       ansible.builtin.lineinfile:
         dest: "/etc/ssh/sshd_config"
-        search_string: 'Include /etc/ssh/sshd_config.d/.conf'
-        line: 'Include /etc/ssh/sshd_config.d/*.conf'
+        search_string: "Include /etc/ssh/sshd_config.d/.conf"
+        line: "Include /etc/ssh/sshd_config.d/*.conf"
         state: present
         mode: "0644"
       when: pve_sshd_strict_include is false
@@ -148,8 +144,5 @@
       ansible.builtin.systemd:
         name: "ssh.service"
         state: reloaded
-      when: "_ssh_config_raw.changed
-             or _ssh_pve_config_raw.changed
-             or _sshd_config_raw.changed
-             or _sshd_pve_config_raw.changed
-             or _local_ssh_config_raw.changed"
+      when: "_ssh_config_raw.changed or _ssh_pve_config_raw.changed or _sshd_config_raw.changed or _sshd_pve_config_raw.changed
+        or _local_ssh_config_raw.changed"

@@ -8,6 +8,7 @@
       ansible.builtin.file:
         path: "/etc/pve/datacenter.cfg"
         state: touch
+        mode: "644"
       when: "pve_datacenter_options | length > 0"
 
     - name: Set datacenter options file for custom datacenter options

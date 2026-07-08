@@ -11,7 +11,10 @@
   ignore_errors: true
   register: _pve_rmmod_softdog
 
-- block:
+- name: Force unload softdog by stopping watchdog-mux first
+  when: "_pve_rmmod_softdog is failed"
+
+  block:
     - name: Stop watchdog-mux
       ansible.builtin.service:
         name: watchdog-mux
@@ -23,8 +26,6 @@
       community.general.modprobe:
         name: softdog
         state: absent
-  when: "_pve_rmmod_softdog is failed"
-
 - name: Disable nmi_watchdog via GRUB config
   ansible.builtin.lineinfile:
     dest: /etc/default/grub

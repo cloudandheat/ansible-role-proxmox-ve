@@ -1,7 +1,7 @@
 ---
 - name: Check if ceph-mgr service exists on this node
   ansible.builtin.command:
-    cmd: "systemctl list-units --all --type=service --output=json"
+    cmd: "systemctl list-units --all --type=service --output=json" # noqa: command-instead-of-module
   register: _systemd_services_raw
 
 - name: Extract ceph-mgr services
@@ -14,14 +14,15 @@
   ansible.builtin.debug:
     var: _systemd_ceph_mgr_services
 
-- name: Reset restart timer for ceph-mgr.service, avoiding conflicts of previous failed restart attempts 
+- name: Reset restart timer for ceph-mgr.service, avoiding conflicts of previous failed restart attempts
   ansible.builtin.command:
-    cmd: "systemctl reset-failed {{ item }}"
+    cmd: "systemctl reset-failed {{ item }}" # noqa: command-instead-of-module
   loop: "{{ _systemd_ceph_mgr_services }}"
 
 - name: Restart ceph-mgr.service one by one
-  ansible.builtin.command:
-    cmd: "systemctl restart {{ item }}"
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: restarted
   register: _systemd_ceph_mgr_service_restart
   failed_when: "_systemd_ceph_mgr_service_restart.rc != 0"
   retries: 4

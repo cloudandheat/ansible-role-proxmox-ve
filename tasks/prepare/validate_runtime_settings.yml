@@ -16,7 +16,7 @@
             _pve_found_clusters: "{{ [] }}"
             _pve_cluster_nodes: "{{ [] }}"
 
-        - name: Check if pvesh is available, to skip cluster status test on plain Debian 
+        - name: Check if pvesh is available, to skip cluster status test on plain Debian
           ansible.builtin.stat:
             path: "/usr/bin/pvesh"
           register: _pve_pvesh_available
@@ -41,7 +41,8 @@
 
         - name: Display host cluster memberships
           ansible.builtin.debug:
-            msg: "Cluster member of: {{ 'None' if _pve_active_cluster is false else _pve_active_cluster | default('UNDEF') }}"
+            msg: "Cluster member of: {{ 'None' if _pve_active_cluster is false else _pve_active_cluster | default('UNDEF')
+              }}"
 
         - name: Find all clusters that the group hosts are member of
           ansible.builtin.set_fact:
@@ -60,9 +61,8 @@
       block:
         - name: Appoint default initialization node is the first node of pve_group
           ansible.builtin.set_fact:
-            _init_node: "{{ pve_cluster_initiator_host
-                          | default(groups[pve_group] | first, true)
-                          | default(inventory_hostname, true) }}"
+            _init_node: "{{ pve_cluster_initiator_host | default(groups[pve_group] | first, true) | default(inventory_hostname,
+              true) }}"
 
         - name: Ensure initialization node is in an existing PVE cluster
           ansible.builtin.set_fact:
@@ -86,16 +86,15 @@
         - name: Ensure that hosts found are not in multiple existing clusters
           ansible.builtin.assert:
             that: "_pve_found_clusters | unique | length <= 1"
-            msg: "Some of the hosts in group '{{ pve_group }}' appear to already be part of different clusters, \
-                  please ensure groups consist only of hosts meant to be in the same cluster."
+            msg: "Some of the hosts in group '{{ pve_group }}' appear to already be part of different clusters, please ensure
+              groups consist only of hosts meant to be in the same cluster."
 
         - name: Ensure that any existing cluster matches the specified cluster name
           ansible.builtin.assert:
             that: "_pve_found_clusters | first == pve_cluster_clustername"
-            msg: "Some of the hosts in group '{{ pve_group }}' appear to be in a cluster named \
-                  '{{ _pve_found_clusters[0] }}', which differs from the specified cluster name of \
-                  '{{ pve_cluster_clustername }}'. Please ensure the cluster name is correct. An existing \
-                  cluster's name cannot be modified."
+            msg: "Some of the hosts in group '{{ pve_group }}' appear to be in a cluster named '{{ _pve_found_clusters[0]
+              }}', which differs from the specified cluster name of '{{ pve_cluster_clustername }}'. Please ensure the cluster
+              name is correct. An existing cluster's name cannot be modified."
           when: "_pve_found_clusters | length == 1"
 
         - name: Fail if node is not clean

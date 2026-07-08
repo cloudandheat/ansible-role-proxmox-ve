@@ -7,7 +7,8 @@
         - name: Normalize PVE realms parameter into list of dicts from mapping
           ansible.builtin.set_fact:
             # transform from {<realm>:{<setting>: <value>, …}} into [{'realm':…, <setting>: <value>, …}]
-            pve_realms: "{{ pve_realms | dict2items | json_query('[].merge({realm: key}, not_null(value, {realm: key}))') }}"
+            pve_realms: "{{ pve_realms | dict2items | json_query('[].merge({realm: key}, not_null(value, {realm: key}))')
+              }}"
           when: "pve_realms is mapping"
 
         - name: Normalize PVE realms parameter into empty list if none
@@ -139,8 +140,8 @@
       tags: realms_sync
       block:
         - name: Trigger manual PVE realm syncs
-          ansible.builtin.command:
-            "pvesh create /access/domains/{{ item.realm }}/sync {{ item.sync | dict2args(bool2int=true) }}"
+          ansible.builtin.command: "pvesh create /access/domains/{{ item.realm }}/sync {{ item.sync | dict2args(bool2int=true)
+            }}"
           register: _pvesh_domains_sync_raws
           loop: "{{ pve_realms }}"
           loop_control:
@@ -152,7 +153,8 @@
 
         - name: Display PVE realm syncs output
           ansible.builtin.debug:
-            msg: "{{ ((item.stderr_lines | length) > 0) | ternary('Sync Error: ' + item.stderr, 'Sync Result: ' + item.stdout) }}"
+            msg: "{{ ((item.stderr_lines | length) > 0) | ternary('Sync Error: ' + item.stderr, 'Sync Result: ' + item.stdout)
+              }}"
           loop: "{{ _pvesh_domains_sync_raws.results | default([]) }}"
           loop_control:
             label: "{{ item.item.realm }} ({{ item.item.type }})"

@@ -2,31 +2,31 @@
 - name: Handle configuration files if handling is enabled
   when: "pve_manage_pcie_passthrough | bool"
   block:
-    - name: Grub modifications for vfio IOMMU 
+    - name: Grub modifications for vfio IOMMU
       ansible.builtin.template:
         src: system/pcie_passthrough/001_pve-immo.cfg.j2
         dest: /etc/default/grub.d/001_pve-immo.cfg
         trim_blocks: false
         mode: "0640"
       notify: update-grub
-    
-    - name: modprobe.d modifications for vfio, mostly for Blacklisting 
+
+    - name: Modprobe.d modifications for vfio, mostly for Blacklisting
       ansible.builtin.template:
         src: system/pcie_passthrough/pve-vfio-modprobe.conf.j2
         dest: /etc/modprobe.d/pve-vfio-modprobe.conf
         mode: "0640"
       notify:
         - update-initramfs
-        - update-kernel-modules 
-    
-    - name: modules-load.d modifications for vfio loading 
+        - update-kernel-modules
+
+    - name: Modules-load.d modifications for vfio loading
       ansible.builtin.template:
         src: system/pcie_passthrough/pve-vfio-systemd-modules.conf.j2
         dest: /etc/modules-load.d/pve-vfio-systemd-modules.conf
         mode: "0640"
       notify:
-        - update-kernel-modules 
- 
+        - update-kernel-modules
+
 - name: Remove configuration files if pcie handling is disabled
   when: "not pve_manage_pcie_passthrough | bool"
   ansible.builtin.file:
@@ -43,4 +43,5 @@
     - update-initramfs
     - update-kernel-modules
 
-- meta: flush_handlers
+- name: Flush handlers to apply PCIe passthrough configuration changes
+  ansible.builtin.meta: flush_handlers

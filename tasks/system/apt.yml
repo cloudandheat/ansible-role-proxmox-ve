@@ -100,10 +100,7 @@
     upgrade: "safe"
     allow_downgrade: true
   until: "_system_upgrade is succeeded"
-  when:
-    "_pve_debian_repo.changed | bool
-    or _pve_repo.changed | bool
-    or _pve_ceph_repo.changed | bool"
+  when: "_pve_debian_repo.changed | bool or _pve_repo.changed | bool or _pve_ceph_repo.changed | bool"
   retries: 3
   register: _system_upgrade
 
@@ -120,7 +117,7 @@
 
 - name: Setup Proxmox repositories
   ansible.builtin.import_tasks: repositories.yml
-  
+
 - name: Install Proxmox VE and related packages
   ansible.builtin.apt:
     update_cache: true
@@ -151,8 +148,8 @@
 - name: Remove subscription check wrapper function in web UI
   ansible.builtin.lineinfile:
     path: "/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js"
-    line: '        orig_cmd(); return;'
-    insertafter: '^\s+checked_command: function\(orig_cmd\) {$'
+    line: "        orig_cmd(); return;"
+    insertafter: "^\\s+checked_command: function\\(orig_cmd\\) {$"
     firstmatch: true
     backup: true
   when: "pve_remove_subscription_warning | bool"

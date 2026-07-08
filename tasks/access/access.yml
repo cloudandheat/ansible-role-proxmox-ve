@@ -1,8 +1,8 @@
 ---
 - name: Ensure an init node is appointed
   ansible.builtin.set_fact:
-    _init_node:
-      "{{ pve_cluster_enabled | ternary(pve_cluster_initiator_host | default(groups[pve_group] | first, true), inventory_hostname) }}"
+    _init_node: "{{ pve_cluster_enabled | ternary(pve_cluster_initiator_host | default(groups[pve_group] | first, true), inventory_hostname)
+      }}"
   when: "_init_node | default(false, true) is false"
   tags:
     - realms
@@ -33,8 +33,8 @@
 - name: Run PVE users tasks
   ansible.builtin.import_tasks: access/users.yml
 
-  # - name: Run PVE user token tasks
-  # ansible.builtin.import_tasks: access/user_token.yml
+# - name: Run PVE user token tasks
+# ansible.builtin.import_tasks: access/user_token.yml
 
 # Finished
 - name: Run PVE pools tasks

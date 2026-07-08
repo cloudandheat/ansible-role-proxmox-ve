@@ -1,5 +1,6 @@
+---
 - name: Check if ZFS pool exists
-  command: zpool list -H -o name {{ storage_item.pool }}
+  ansible.builtin.command: zpool list -H -o name {{ storage_item.pool }}
   register: zpool_check
   changed_when: false
   failed_when: false
@@ -17,17 +18,16 @@
   tags: storage
 
 - name: Check ZFS pool health
-  command: zpool list -H -o health {{ storage_item.pool }}
+  ansible.builtin.command: zpool list -H -o health {{ storage_item.pool }}
   register: zpool_health
   changed_when: false
 
 - name: Assert ZFS pool is healthy
-  assert:
+  ansible.builtin.assert:
     that:
       - zpool_health.stdout == "ONLINE"
     fail_msg: "ZFS pool {{ storage_item.pool }} is NOT healthy"
     success_msg: "ZFS pool {{ storage_item.pool }} is healthy"
-
 
 - name: Create ZFS Volumes specified by user
   community.general.zfs:

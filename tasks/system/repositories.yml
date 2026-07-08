@@ -1,4 +1,7 @@
+---
 - name: Manage deb822 repositories
+  when: "ansible_distribution_major_version | int > 12"
+
   block:
     - name: Add Proxmox repository
       ansible.builtin.deb822_repository:
@@ -43,10 +46,8 @@
 
     - name: Update repositories cache
       ansible.builtin.apt:
-        update_cache: yes
+        update_cache: true
       when: _pve_repo is changed or _pve_ceph_repo is changed
-
-  when: "ansible_distribution_major_version | int > 12"
 
 - name: Update repositories
   ansible.builtin.apt:
