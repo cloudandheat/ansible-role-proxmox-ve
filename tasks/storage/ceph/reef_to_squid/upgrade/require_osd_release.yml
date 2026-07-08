@@ -10,7 +10,7 @@
     
     - name: check for osd version based health warning
       ansible.builtin.set_fact:
-        _ceph_osd_version_warn: "{{ _ceph_health.stdout | from_json | json_query(jquery) }}"
+        _ceph_osd_version_warn: "{{ _ceph_health.stdout | from_json | json_query(jquery) | default('', true) }}"
       vars:
         jquery: 'checks.OSD_UPGRADE_FINISHED'
     
