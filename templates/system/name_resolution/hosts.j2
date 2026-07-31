@@ -17,17 +17,17 @@ ff02::3 {{ "\t" }} ip6-allhosts
 {% if not pve_cluster_enabled %}
 # IPv4 localhost resolution
 {% for ipv4_address in ansible_all_ipv4_addresses -%}
-{{ ipv4_address }} {{ "\t" }} {{ ansible_hostname }}.{{ pve_domain }} {{ ansible_fqdn }} {{ ansible_hostname }}
+{{ ipv4_address }} {{ "\t" }} {{ ansible_hostname }}.{{ pve_domain }}{% if ansible_fqdn != ansible_hostname + '.' + pve_domain %} {{ ansible_fqdn }}{% endif %} {{ ansible_hostname }}
 {% endfor %}
 # IPv6 localhost resolution
 {% for ipv6_address in ansible_all_ipv6_addresses -%}
-{{ ipv6_address }} {{ "\t" }} {{ ansible_hostname }}.{{ pve_domain }} {{ ansible_fqdn }} {{ ansible_hostname }}
+{{ ipv6_address }} {{ "\t" }} {{ ansible_hostname }}.{{ pve_domain }}{% if ansible_fqdn != ansible_hostname + '.' + pve_domain %} {{ ansible_fqdn }}{% endif %} {{ ansible_hostname }}
 {% endfor %}
 {% endif %}
 
 {% if pve_cluster_enabled -%}
 # PVE cluster host resolution
 {% for host in groups[pve_group] -%}
-{{ hostvars[host].pve_cluster_addr0 }} {{ "\t" }} {{ hostvars[host].ansible_hostname }}.{{ pve_domain }} {{ hostvars[host].ansible_fqdn }} {{ hostvars[host].ansible_hostname }}
+{{ hostvars[host].pve_cluster_addr0 }} {{ "\t" }} {{ hostvars[host].ansible_hostname }}.{{ pve_domain }}{% if hostvars[host].ansible_fqdn != hostvars[host].ansible_hostname + '.' + pve_domain %} {{ hostvars[host].ansible_fqdn }}{% endif %} {{ hostvars[host].ansible_hostname }}
 {% endfor %}
 {% endif %}
