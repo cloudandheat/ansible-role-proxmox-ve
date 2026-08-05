@@ -813,7 +813,7 @@ pve_ceph_crush_buckets: []
 
 ### ZFS
 # pve_zfs_enabled -> bool: (Declarative) Whether to install and configure ZFS packages
-pve_zfs_enabled: false
+pve_zfs_enabled: true
 # pve_zfs_options -> str: ZFS kernel module paramaters.
 # pve_zfs_options: "parameters to pass to zfs module"
 # pve_zfs_zed_email -> str: Email address for ZFS event daemon notifications
