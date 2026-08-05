@@ -5,7 +5,7 @@
 # NOTE: To actually enable clustering, set the corresponding variables to true.
 pve_group: "{{ group_names }}"
 # pve_remove_subscription_warning -> bool: (Declarative) Remove PVE no subscription warning.
-pve_remove_subscription_warning: true
+pve_remove_subscription_warning: false
 # pve_manage_etc_hosts -> bool: (Irreversible) If hosts file should be auto-generated with cluster hosts. (Overwriting manual changes.)
 pve_manage_etc_hosts: true
 # pve_hostname_rename -> Optional[str]: (Declarative) If and what hosts should get renamed to.
