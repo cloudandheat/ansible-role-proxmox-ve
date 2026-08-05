@@ -2,19 +2,19 @@
 - name: Check if OSD-Update finished and set OSD Minversion
   run_once: true
   block:
-    
-    - name: Set the OSD required release version - {{ chup_new_ceph_version_name }}
+
+    - name: Set the OSD required release version to {{ chup_new_ceph_version_name }}
       ansible.builtin.command:
         cmd: "ceph health --format json"
       register: _ceph_health
-    
-    - name: check for osd version based health warning
+
+    - name: Check for OSD version based health warning
       ansible.builtin.set_fact:
         _ceph_osd_version_warn: "{{ _ceph_health.stdout | from_json | json_query(jquery) }}"
       vars:
         jquery: 'checks.OSD_UPGRADE_FINISHED'
-    
-    - name: Set required OSD release to squid
+
+    - name: Set required OSD release to {{ chup_new_ceph_version_name }}
       ansible.builtin.command:
         cmd: "ceph osd require-osd-release {{ chup_new_ceph_version_name }}"
       when: "_ceph_osd_version_warn | length > 0 "
