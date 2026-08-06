@@ -95,6 +95,9 @@ pve_sshd_strict_include: true
 pve_manage_debian_repository: true
 # pve_debian_version -> str: (Declarative) The hosts debian os release name.
 pve_debian_version: "bookworm"
+# pve_ceph_version -> str: (Declarative) The version of Ceph that will be installed.
+#                          Default values are defined for every Proxmox/Debian release.
+pve_ceph_version: "{{ pve_ceph_default_version }}"
 # pve_debian_repository_lines -> list[str]: (Declarative) Debian OS apt sources list repository mirror line.
 pve_debian_repository_lines:
   - "deb http://deb.debian.org/debian/ {{ pve_debian_version }} main non-free-firmware"
