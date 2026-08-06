@@ -1,4 +1,6 @@
+---
 - name: Manage deb822 repositories
+  when: "ansible_distribution_major_version | int > 12"
   block:
     - name: Add Proxmox repository
       ansible.builtin.deb822_repository:
@@ -46,12 +48,50 @@
         update_cache: yes
       when: _pve_repo is changed or _pve_ceph_repo is changed
 
-  when: "ansible_distribution_major_version | int > 12"
+- name: Manage non-deb822 repositories
+  when: "ansible_distribution_major_version | int <= 12"
+  block:
+    - name: Set debian mirrors in /etc/apt/sources.list
+      ansible.builtin.template:
+        src: "system/apt/sources.list.j2"
+        dest: "/etc/apt/sources.list"
+        mode: "0644"
+      register: _pve_debian_repo
+      when: "pve_manage_debian_repository | bool"
+
+    - name: Set the Proxmox apt source list file
+      ansible.builtin.template:
+        src: "system/apt/pve.list.j2"
+        dest: "/etc/apt/sources.list.d/pve.list"
+        backup: true
+        mode: "0644"
+        validate: "apt-get update -o Dir::Etc::sourcelist=%s"
+      register: _pve_repo
+
+    - name: Set the Ceph apt source list file
+      ansible.builtin.template:
+        src: "system/apt/pve_ceph.list.j2"
+        dest: "/etc/apt/sources.list.d/ceph.list"
+        backup: true
+        mode: "0644"
+        validate: "apt-get update -o Dir::Etc::sourceParts=%s"
+      register: _pve_ceph_repo
+      when:
+        - (pve_ceph_enabled | bool) or (pve_ceph_enhanced_enabled | bool)
+
+    - name: Ensure PVE enterprise repository is absent
+      ansible.builtin.file:
+        path: "/etc/apt/sources.list.d/pve-enterprise.list"
+        state: absent
+      when: not (pve_enable_enterprise_repository | bool)
 
 - name: Update repositories
   ansible.builtin.apt:
     update_cache: true
-  when: _pve_repo is changed or _pve_ceph_repo is changed
+  when:
+    _pve_debian_repo is changed or
+    _pve_repo is changed or
+    _pve_ceph_repo is changed
 
 - name: Ensure PVE enterprise repository is absent (deb822)
   ansible.builtin.deb822_repository:
@@ -61,10 +101,3 @@
   when:
     - pve_repository.components != "pve-enterprise"
     - "ansible_distribution_major_version | int <= 12"
-
-- name: Ensure PVE enterprise repository is absent (legacy)
-  ansible.builtin.file:
-    path: "/etc/apt/sources.list.d/pve-enterprise.list"
-    state: absent
-  when:
-    - pve_repository.components != "pve-enterprise"
