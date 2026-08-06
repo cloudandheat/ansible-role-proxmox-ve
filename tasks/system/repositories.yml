@@ -42,7 +42,7 @@
       ansible.builtin.deb822_repository:
         name: proxmox
         types: deb
-        uris: "{{ pve_repository.uris }}"
+        uris: "{{ pve_repository_uri }}"
         suites: "{{ pve_debian_version }}"
         components: pve-no-subscription
         signed_by: /etc/apt/trusted.gpg.d/proxmox-release-{{ pve_debian_version }}.gpg
@@ -58,7 +58,7 @@
       ansible.builtin.deb822_repository:
         name: pve-enterprise
         types: deb
-        uris: "{{ pve_repository.uris }}"
+        uris: "{{ pve_repository_uri }}"
         suites: "{{ pve_debian_version }}"
         components: "pve-enterprise"
         signed_by: /etc/apt/trusted.gpg.d/proxmox-release-{{ pve_debian_version }}.gpg
@@ -70,9 +70,9 @@
       ansible.builtin.deb822_repository:
         name: ceph
         types: deb
-        uris: "{{ pve_ceph_repository.uris }}"
+        uris: "{{ pve_ceph_repository_uri }}"
         suites: "{{ pve_debian_version }}"
-        components: "{{ pve_ceph_repository.components }}"
+        components: "{{ 'enterprise' if (pve_enable_enterprise_repository | bool) else 'pve-no-subscription' }}"
         signed_by: /etc/apt/trusted.gpg.d/proxmox-release-{{ pve_debian_version }}.gpg
         state: present
       register: _pve_repositories

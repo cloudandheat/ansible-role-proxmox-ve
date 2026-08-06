@@ -41,15 +41,6 @@ pve_ntp_chrony_sources_file: "/etc/chrony/sources.d/ansible-configured.sources"
 #   - address: "pool.ntp.org"
 #     type: "pool"
 
-# NOTE: for Debian 13 deb822 repositories are used, which require a different configuration
-pve_repository:
-  uris: http://download.proxmox.com/debian/pve
-  # suites -> str: Name of the debian distribution. For example "trixie"
-  suites: "{{ ansible_distribution_release }}"
-  components: pve-no-subscription
-# pve_enable_enterprise_repository -> bool: Enable/Disable the enterprise-repository in Debian13/PVE9 setups
-pve_enable_enterprise_repository: false
-
 ### PVEPROXY + SSL/TLS
 # pve_pveproxy_defaults -> Optional dict={
 # <key> -> str="viablae config key" : <value> -> str="viable config value"
@@ -98,6 +89,8 @@ pve_debian_version: "{{ ansible_distribution_release }}"
 # pve_ceph_version -> str: (Declarative) The version of Ceph that will be installed.
 #                          Default values are defined for every Proxmox/Debian release.
 pve_ceph_version: "{{ pve_ceph_default_version }}"
+# pve_enable_enterprise_repository -> bool: Enable/Disable the enterprise-repository
+pve_enable_enterprise_repository: false
 # pve_debian_repository_lines -> list[str]: (Declarative) Debian OS apt sources list repository mirror line.
 pve_debian_repository_lines:
   - "deb http://deb.debian.org/debian/ {{ pve_debian_version }} main non-free-firmware"
@@ -109,9 +102,13 @@ pve_debian_repository_lines:
 # pve_repository_line -> str: (Declarative) PVE apt sources list repository mirror line.
 # (Further information: https://pve.proxmox.com/wiki/Package_Repositories)
 pve_repository_line: "deb http://download.proxmox.com/debian/pve {{ pve_debian_version }} pve-no-subscription"
+# NOTE: for Debian 13 deb822 repositories are used, which require a different configuration
+pve_repository_uri: http://download.proxmox.com/debian/pve
 # pve_ceph_repository_line -> str: (Declarative) PVE Ceph apt sources list repository mirror line.
 # (Further information: https://pve.proxmox.com/wiki/Package_Repositories)
 pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-{{ pve_ceph_default_version }} {{ pve_debian_version }} no-subscription"
+# NOTE: for Debian 13 deb822 repositories are used, which require a different configuration
+pve_ceph_repository_uri: http://download.proxmox.com/debian/ceph-{{ pve_ceph_default_version }}
 # pve_extra_uninstall_packages -> list[str]: (Irreversible) Names of apt packages to remove (purge).
 pve_extra_uninstall_packages: []
 # pve_extra_packages -> list[str]: (Irreversible) Names of additional apt packages to install on each host.
