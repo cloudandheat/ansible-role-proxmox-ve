@@ -70,10 +70,7 @@
     upgrade: "safe"
     allow_downgrade: true
   until: "_system_upgrade is succeeded"
-  when:
-    "_pve_debian_repo.changed | bool
-    or _pve_repo.changed | bool
-    or _pve_ceph_repo.changed | bool"
+  when: _pve_repositories.changed | bool
   retries: 3
   register: _system_upgrade
 
