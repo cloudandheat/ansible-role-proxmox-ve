@@ -95,7 +95,6 @@
         dest: "/etc/apt/sources.list.d/pve.list"
         backup: true
         mode: "0644"
-        validate: "apt-get update -o Dir::Etc::sourcelist=%s"
       register: _pve_repositories
 
     - name: Set the Ceph apt source list file
@@ -104,7 +103,6 @@
         dest: "/etc/apt/sources.list.d/ceph.list"
         backup: true
         mode: "0644"
-        validate: "apt-get update -o Dir::Etc::sourceParts=%s"
       register: _pve_repositories
       when:
         - (pve_ceph_enabled | bool) or (pve_ceph_enhanced_enabled | bool)
