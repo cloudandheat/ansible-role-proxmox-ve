@@ -93,8 +93,8 @@ pve_sshd_strict_include: true
 ### APT Packages & Repository
 # pve_manage_debian_repository -> bool: (Irreversible) If the debian OS repository mirrors should be overwritten with pve_debian_repository_lines.
 pve_manage_debian_repository: true
-# pve_debian_version -> str: (Declarative) The hosts debian os release name.
-pve_debian_version: "bookworm"
+# pve_debian_version -> str: (Declarative) The host's Debian OS release name, defaults to the current version.
+pve_debian_version: "{{ ansible_distribution_release }}"
 # pve_ceph_version -> str: (Declarative) The version of Ceph that will be installed.
 #                          Default values are defined for every Proxmox/Debian release.
 pve_ceph_version: "{{ pve_ceph_default_version }}"
