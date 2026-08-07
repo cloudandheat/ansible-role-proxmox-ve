@@ -542,6 +542,13 @@ pve_ceph_enabled: false
 # pve_ceph_enhanced_enabled -> bool: (Irreversible) If an enhanced role should install and configure ceph for PVE. Mutually exclusive with pve_ceph_enabled.
 #                                                   NOTE: Requires pve_ceph_network to be set and correct.
 pve_ceph_enhanced_enabled: false
+
+pve_ceph_disable_telemetry: true
+# Disable mostly for testing
+pve_ceph_ignore_healthwarns: false
+# Number of tries to recheck in 10 second intervalls, if the ceph has become healthy
+pve_ceph_healthcheck_retries: 5
+
 # pve_ceph_network -> str: (Irreversible) Ceph public(/cluster) network in CIDR notation.
 #                                         NOTE: Aliased by "ceph_public_ip: <host_ip_address>/<netmask>" host variable.
 pve_ceph_network: "{{ (ansible_default_ipv4.network + '/' + ansible_default_ipv4.netmask) | ansible.utils.ipaddr('net') }}"
@@ -910,13 +917,3 @@ pve_rollout_backup:
   enabled: false
   mode: "snapshot"
   storage: "local"
-
-
-### CEPH-UPGRADE configuration
-
-# default variables
-chup_disable_telemetry: true
-# Disable mostly for testing
-chup_ignore_healthwarns: false
-# Number of tries to recheck in 10 second intervalls, if the ceph has become healthy
-chup_healthcheck_retries: 5

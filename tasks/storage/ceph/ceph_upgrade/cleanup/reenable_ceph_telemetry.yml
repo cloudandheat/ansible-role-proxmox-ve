@@ -1,7 +1,5 @@
 ---
-
-- name: "(re)enable telemetry send to ceph project -> https://telemetry-public.ceph.com/d/ZFYuv1qWz/telemetry?orgId=1"
-  when: chup_disable_telemetry == false
+  when: not pve_ceph_disable_telemetry
   block:
   - name: Disable Ceph telemetry
     ansible.builtin.command:

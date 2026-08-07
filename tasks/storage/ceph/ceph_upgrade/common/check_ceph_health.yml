@@ -3,15 +3,15 @@
   run_once: true
   block:
     - name: Get detailed Ceph health status
-      ansible.builtin.command: 
+      ansible.builtin.command:
         cmd: "ceph health detail --format json"
       register: _ceph_health_detail_raw
       vars:
         _failed_filter: "{{ _ceph_health_detail_raw.stdout | from_json | json_query('status') }}"
       failed_when:
         - "_failed_filter != 'HEALTH_OK'"
-        - "chup_ignore_healthwarns != true" 
-      retries: "{{ chup_healthcheck_retries }}"
+        - not pve_ceph_ignore_healthwarns
+      retries: "{{ pve_ceph_healthcheck_retries }}"
       delay: 10
 
   rescue:
