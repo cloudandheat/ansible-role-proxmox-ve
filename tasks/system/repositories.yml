@@ -76,7 +76,7 @@
         signed_by: /etc/apt/trusted.gpg.d/proxmox-release-{{ pve_debian_version }}.gpg
         state: present
       register: _pve_repositories
-      when: pve_ceph_enabled | bool or pve_ceph_enhanced_enabled | bool
+      when: (pve_ceph_enabled | bool) or (pve_ceph_enhanced_enabled | bool)
 
 - name: Manage non-deb822 repositories
   when: "ansible_distribution_major_version | int <= 12"
@@ -104,8 +104,7 @@
         backup: true
         mode: "0644"
       register: _pve_repositories
-      when:
-        - (pve_ceph_enabled | bool) or (pve_ceph_enhanced_enabled | bool)
+      when: (pve_ceph_enabled | bool) or (pve_ceph_enhanced_enabled | bool)
 
     - name: Ensure PVE enterprise repository is absent
       ansible.builtin.file:
