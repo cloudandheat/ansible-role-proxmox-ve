@@ -918,7 +918,6 @@ pve_rollout_backup:
 
 # default variables
 chup_disable_telemetry: true
-chup_use_enterprise_repo: false
 # Disable mostly for testing
 chup_ignore_healthwarns: false
 # Number of tries to recheck in 10 second intervalls, if the ceph has become healthy

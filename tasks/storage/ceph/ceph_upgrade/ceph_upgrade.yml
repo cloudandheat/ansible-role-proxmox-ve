@@ -33,9 +33,6 @@
 - name: Conduct upgrade
   block:
 
-    - name: replace ceph version in apt sources files
-      ansible.builtin.import_tasks: upgrade/set_new_ceph_repo.yml
-
     - name: Update APT cache on all nodes and do the distro upgrade, without reboot
       ansible.builtin.import_tasks: upgrade/ceph_apt_upgrades.yml
 
@@ -50,7 +47,7 @@
 
     - name: Restart ceph-mgr services (only if running)
       ansible.builtin.import_tasks: upgrade/restart_ceph_mgr.yml
-    
+
     - name: Check if ceph-mgrs were updated to the new version
       ansible.builtin.import_tasks: upgrade/validate_ceph_mgr_status.yml
 

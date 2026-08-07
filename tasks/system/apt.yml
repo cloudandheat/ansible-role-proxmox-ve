@@ -97,11 +97,6 @@
   retries: 2
   register: _proxmox_install
 
-- name: Remove automatically created VE Enterprise repo source (again) after PVE install
-  ansible.builtin.file:
-    path: "/etc/apt/sources.list.d/pve-enterprise.list"
-    state: absent
-
 - name: Remove unnecessary or unwanted apt packages
   ansible.builtin.apt:
     update_cache: true
