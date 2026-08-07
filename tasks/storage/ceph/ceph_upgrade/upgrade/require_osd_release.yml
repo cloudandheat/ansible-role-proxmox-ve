@@ -3,7 +3,7 @@
   run_once: true
   block:
 
-    - name: Set the OSD required release version to {{ chup_new_ceph_version_name }}
+    - name: Set the OSD required release version to {{ pve_ceph_version }}
       ansible.builtin.command:
         cmd: "ceph health --format json"
       register: _ceph_health
@@ -14,7 +14,7 @@
       vars:
         jquery: 'checks.OSD_UPGRADE_FINISHED'
 
-    - name: Set required OSD release to {{ chup_new_ceph_version_name }}
+    - name: Set required OSD release to {{ pve_ceph_version }}
       ansible.builtin.command:
-        cmd: "ceph osd require-osd-release {{ chup_new_ceph_version_name }}"
+        cmd: "ceph osd require-osd-release {{ pve_ceph_version }}"
       when: "_ceph_osd_version_warn | length > 0 "

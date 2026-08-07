@@ -919,13 +919,9 @@ pve_rollout_backup:
 # default variables
 chup_disable_telemetry: true
 chup_use_enterprise_repo: false
-chup_pve_min_version: "8.2"
-chup_ceph_min_version: "18.2.4"
 # Disable mostly for testing
 chup_ignore_healthwarns: false
 # Number of tries to recheck in 10 second intervalls, if the ceph has become healthy
 chup_healthcheck_retries: 5
 # allowed values are: freeze, failover, migrate, conditional
 chup_datacenter_ha_settings: "migrate"
-chup_old_ceph_version_name: "reef"
-chup_new_ceph_version_name: "squid"

@@ -17,7 +17,7 @@
       vars:
         jquery: 'available'
 
-    - name: Check if the manager services are available, post restart after upgrade to version - {{ chup_new_ceph_version_name }}
+    - name: Check if the manager services are available, post restart after upgrade to version {{ pve_ceph_version }}
       ansible.builtin.assert:
         that:
           - "_ceph_mgr_available is true"
