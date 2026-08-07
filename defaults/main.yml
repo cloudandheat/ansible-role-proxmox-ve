@@ -922,5 +922,3 @@ chup_disable_telemetry: true
 chup_ignore_healthwarns: false
 # Number of tries to recheck in 10 second intervalls, if the ceph has become healthy
 chup_healthcheck_retries: 5
-# allowed values are: freeze, failover, migrate, conditional
-chup_datacenter_ha_settings: "migrate"

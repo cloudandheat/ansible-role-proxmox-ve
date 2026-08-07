@@ -8,30 +8,32 @@
         path: "/etc/pve/datacenter.cfg"
       register: _pve_dc_cfg_exists
 
-    - name: Check if the chup_datacenter_ha_settings is configured with the default value of 'conditional'
-      ansible.builtin.assert:
-        that: 
-          - "chup_datacenter_ha_settings == 'conditional'"
-        fail_msg: "no datacenter.cfg found, but the ha behavior is not set to the default of conditional "
-        success_msg: "Passed check for chup_datacenter_ha_settings behavior"
-      when: "_pve_dc_cfg_exists.stat.exists == false"
+    - name: Fail if the HA migration strategy is not set to the default 'conditional'
+      ansible.builtin.fail:
+        msg: "No datacenter.cfg found, but the HA behavior is not set to the default of conditional "
+      when:
+        - not pve_dc_cfg_exists.stat.exists
+        - (pve_datacenter_options | default({})).ha | default("") == "conditional"
 
     - name: Slurp content of datacenter.cfg
       ansible.builtin.slurp:
         src: "/etc/pve/datacenter.cfg"
       register: _pve_dc_cfg_content
+      when: pve_dc_cfg_exists.stat.exists
 
     - name: Extract configured ha shutdown_policy
       ansible.builtin.set_fact:
         _pve_mig_strt: "{{ _pve_mig_strt_raw[0] | split('=') | json_query('[1]') }}"
       vars:
-        _pve_mig_strt_raw: "{{ _pve_dc_cfg_content.content | b64decode | split('\n') | 
+        _pve_mig_strt_raw: "{{ _pve_dc_cfg_content.content | b64decode | split('\n') |
                                 select('match', 'ha: shutdown_policy') }}"
+      when: pve_dc_cfg_exists.stat.exists
 
-    - name: Check if the chup_datacenter_ha_settings is configured according /etc/pve/datacenter.cfg
+    - name: Check if the HA migration strategy is configured according to /etc/pve/datacenter.cfg
       ansible.builtin.assert:
-        that: 
-          - "chup_datacenter_ha_settings == _pve_mig_strt"
-        fail_msg: "datacenter.cfg holds a diffrent migration strategy for guests, than requested"
-        success_msg: "Passed check for chup_datacenter_ha_settings behavior"
-      when: "_pve_dc_cfg_exists.stat.exists == true"
+        that:
+          - (pve_datacenter_options | default({})).ha | default("") == _pve_mig_strt
+        fail_msg: "HA migration strategy is not configured according to /etc/pve/datacenter.cfg.
+                  Adapt the configuration to proceed."
+        success_msg: "HA migration strategy is configured according to /etc/pve/datacenter.cfg."
+      when: _pve_dc_cfg_exists.stat.exists
