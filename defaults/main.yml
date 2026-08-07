@@ -438,8 +438,6 @@ pve_cluster_ha_manager_init: true
 # }: (Declarative) Custom PVE Datacenter options.
 # Example: {"bwlimit": "default=1048576", "crs": "ha=basic,ha-rebalance-on-start=1", "ha": "shutdown_policy=migrate", …}
 pve_datacenter_options: {}
-# pve_datacenter_cfg -> dict: (Legacy) key-values for PVE datacenter options (datacenter.cfg).
-pve_datacenter_cfg: "{{ pve_datacenter_options }}"
 
 ### PVE Storage definitions
 # pve_storages -> dict={
