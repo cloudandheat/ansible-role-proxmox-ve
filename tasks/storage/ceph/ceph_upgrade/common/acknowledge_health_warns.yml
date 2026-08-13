@@ -20,17 +20,17 @@
     - name: Archive crash reports 
       ansible.builtin.command:
         cmd: "ceph crash archive-all"
-      when: "_ceph_crash_new_before_length > '0'"
+      when: "_ceph_crash_new_before_length > 0"
     
     - name: Archive crash reports 
       ansible.builtin.command:
         cmd: "ceph crash ls-new"
       register: _ceph_crash_new_after
-      when: "_ceph_crash_new_before_length > '0'"
+      when: "_ceph_crash_new_before_length > 0"
     
     - name: List found crash logs
       ansible.builtin.debug:
         msg: |
           Found the following crashlogs, after archiving
           {{ _ceph_crash_new_after.stdout }}
-      when: "_ceph_crash_new_before_length > '0'"
+      when: "_ceph_crash_new_before_length > 0"
