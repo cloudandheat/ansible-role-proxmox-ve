@@ -2,35 +2,38 @@
 - name: Detect and archive crash reports
   run_once: true
   block:
-    - name: List crash reports not archived so far 
+    - name: List crash reports not archived so far
       ansible.builtin.command:
         cmd: "ceph crash ls-new"
       register: _ceph_crash_new_before
-    
+      changed_when: false
+
     - name: List found crash logs
       ansible.builtin.debug:
         msg: |
-          Found the following unarchived crashlogs, trying to archive if not empty
+          Found the following non-archived crash logs. Trying to archive if not empty
           {{ _ceph_crash_new_before.stdout_lines }}
-    
-    - name: Determ length of crash reports
+
+    - name: Determine length of crash reports
       ansible.builtin.set_fact:
         _ceph_crash_new_before_length: "{{ _ceph_crash_new_before.stdout | length | int }}"
 
-    - name: Archive crash reports 
+    - name: Archive crash reports
       ansible.builtin.command:
         cmd: "ceph crash archive-all"
       when: "_ceph_crash_new_before_length > 0"
-    
-    - name: Archive crash reports 
+      changed_when: true
+
+    - name: Archive crash reports
       ansible.builtin.command:
         cmd: "ceph crash ls-new"
       register: _ceph_crash_new_after
       when: "_ceph_crash_new_before_length > 0"
-    
+      changed_when: true
+
     - name: List found crash logs
       ansible.builtin.debug:
         msg: |
-          Found the following crashlogs, after archiving
+          Found the following crash logs after archiving
           {{ _ceph_crash_new_after.stdout }}
       when: "_ceph_crash_new_before_length > 0"
