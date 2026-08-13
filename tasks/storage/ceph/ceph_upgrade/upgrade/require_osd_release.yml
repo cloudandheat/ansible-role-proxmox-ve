@@ -10,11 +10,11 @@
 
     - name: Check for OSD version based health warning
       ansible.builtin.set_fact:
-        _ceph_osd_version_warn: "{{ _ceph_health.stdout | from_json | json_query(jquery) }}"
+        _ceph_osd_version_warn: "{{ _ceph_health.stdout | from_json | json_query(jquery) | default('', true) }}"
       vars:
         jquery: 'checks.OSD_UPGRADE_FINISHED'
 
     - name: Set required OSD release to {{ pve_ceph_version }}
       ansible.builtin.command:
         cmd: "ceph osd require-osd-release {{ pve_ceph_version }}"
-      when: "_ceph_osd_version_warn | length > 0 "
+      when: "_ceph_osd_version_warn | length > 0"
