@@ -45,6 +45,11 @@
   tags:
     - ssh
 
+- name: Upgrade Ceph version
+  ansible.builtin.import_tasks: storage/ceph/ceph_upgrade/ceph_upgrade.yml
+  tags:
+    - ceph_upgrade
+
 - name: Upgrade or downgrade the system packages
   ansible.builtin.import_tasks: system/apt.yml
   tags:
@@ -117,12 +122,6 @@
         - "pve_ceph_enhanced_enabled | bool"
         - "pve_cluster_enabled | bool"
         - "inventory_hostname in pve_ceph_nodes or inventory_hostname_short in pve_ceph_nodes"
-      tags:
-        - ceph
-
-    # Requires Ceph cluster to exist
-    - name: Upgrade Ceph version
-      ansible.builtin.import_tasks: storage/ceph/ceph_upgrade/ceph_upgrade.yml
       tags:
         - ceph
 
