@@ -12,14 +12,14 @@
       ansible.builtin.fail:
         msg: "No datacenter.cfg found, but the HA behavior is not set to the default of conditional "
       when:
-        - not pve_dc_cfg_exists.stat.exists
+        - not _pve_dc_cfg_exists.stat.exists
         - (pve_datacenter_options | default({})).ha | default("") == "conditional"
 
     - name: Slurp content of datacenter.cfg
       ansible.builtin.slurp:
         src: "/etc/pve/datacenter.cfg"
       register: _pve_dc_cfg_content
-      when: pve_dc_cfg_exists.stat.exists
+      when: _pve_dc_cfg_exists.stat.exists
 
     - name: Extract configured ha shutdown_policy
       ansible.builtin.set_fact:
@@ -27,7 +27,7 @@
       vars:
         _pve_mig_strt_raw: "{{ _pve_dc_cfg_content.content | b64decode | split('\n') |
                                 select('match', 'ha: shutdown_policy') }}"
-      when: pve_dc_cfg_exists.stat.exists
+      when: _pve_dc_cfg_exists.stat.exists
 
     - name: Check if the HA migration strategy is configured according to /etc/pve/datacenter.cfg
       ansible.builtin.assert:
