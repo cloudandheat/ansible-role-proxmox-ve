@@ -1,20 +1,22 @@
 ---
-- name: Check if OSD-Update finished and set OSD Minversion
+- name: Check if OSD version was updated and set the correct OSD version if required
   run_once: true
   block:
 
-    - name: Set the OSD required release version to {{ pve_ceph_version }}
+    - name: Retrieve the Ceph health status
       ansible.builtin.command:
         cmd: "ceph health --format json"
       register: _ceph_health
+      changed_when: false
 
     - name: Check for OSD version based health warning
       ansible.builtin.set_fact:
-        _ceph_osd_version_warn: "{{ _ceph_health.stdout | from_json | json_query(jquery) | default('', true) }}"
+        _ceph_osd_version_warn: "{{ _ceph_health.stdout | from_json | json_query(json_query) | default('', true) }}"
       vars:
-        jquery: 'checks.OSD_UPGRADE_FINISHED'
+        json_query: 'checks.OSD_UPGRADE_FINISHED'
 
     - name: Set required OSD release to {{ pve_ceph_version }}
       ansible.builtin.command:
         cmd: "ceph osd require-osd-release {{ pve_ceph_version }}"
       when: "_ceph_osd_version_warn | length > 0"
+      changed_when: true
