@@ -17,4 +17,4 @@
     - name: Fail if Ceph version is not {{ pve_ceph_version }}
       ansible.builtin.fail:
         msg: "Ceph version must be {{ pve_ceph_version }}. Found: {{ _ceph_version }}"
-      when: _ceph_version is not pve_ceph_version
+      when: _ceph_version != pve_ceph_version
