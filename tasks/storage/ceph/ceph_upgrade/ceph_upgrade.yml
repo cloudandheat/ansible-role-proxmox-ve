@@ -22,9 +22,6 @@
 
     - name: Ensure Ceph health is OK before proceeding
       ansible.builtin.import_tasks: common/check_ceph_health.yml
-    
-    - name: Validate Ceph and Proxmox versions
-      ansible.builtin.import_tasks: prepare/validate_versions.yml
 
     # check for syntax
     - name: Disable Ceph telemetry
