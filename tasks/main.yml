@@ -45,15 +45,15 @@
   tags:
     - ssh
 
-- name: Upgrade Ceph version
-  ansible.builtin.import_tasks: storage/ceph/ceph_upgrade/ceph_upgrade.yml
-  tags:
-    - ceph_upgrade
-
 - name: Upgrade or downgrade the system packages
   ansible.builtin.import_tasks: system/apt.yml
   tags:
     - apt
+
+- name: Upgrade Ceph version
+  ansible.builtin.import_tasks: storage/ceph/ceph_upgrade/ceph_upgrade.yml
+  tags:
+    - ceph_upgrade
 
 - name: Set and apply sysctl configuration
   ansible.builtin.import_tasks: system/sysctl.yml
