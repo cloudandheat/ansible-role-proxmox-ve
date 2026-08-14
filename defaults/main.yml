@@ -106,7 +106,7 @@ pve_repository_line: "deb http://download.proxmox.com/debian/pve {{ pve_debian_v
 pve_repository_uri: http://download.proxmox.com/debian/pve
 # pve_ceph_repository_line -> str: (Declarative) PVE Ceph apt sources list repository mirror line.
 # (Further information: https://pve.proxmox.com/wiki/Package_Repositories)
-pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-{{ pve_ceph_version }} {{ pve_debian_version }} no-subscription"
+pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-{{ pve_ceph_version }} {{ pve_debian_version }} {{ pve_ceph_debian_component }}"
 # NOTE: for Debian 13 deb822 repositories are used, which require a different configuration
 pve_ceph_repository_uri: http://download.proxmox.com/debian/ceph-{{ pve_ceph_version }}
 # pve_extra_uninstall_packages -> list[str]: (Irreversible) Names of apt packages to remove (purge).
