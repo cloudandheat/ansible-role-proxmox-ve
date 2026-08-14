@@ -50,11 +50,6 @@
   tags:
     - apt
 
-- name: Upgrade Ceph version
-  ansible.builtin.import_tasks: storage/ceph/ceph_upgrade/ceph_upgrade.yml
-  tags:
-    - ceph_upgrade
-
 - name: Set and apply sysctl configuration
   ansible.builtin.import_tasks: system/sysctl.yml
   tags:
@@ -123,6 +118,12 @@
         - "pve_cluster_enabled | bool"
         - "inventory_hostname in pve_ceph_nodes or inventory_hostname_short in pve_ceph_nodes"
       tags:
+        - ceph
+
+    - name: Upgrade Ceph version
+      ansible.builtin.import_tasks: storage/ceph/ceph_upgrade/ceph_upgrade.yml
+      tags:
+        - ceph_upgrade
         - ceph
 
     - name: Setup ZFS storage pools
