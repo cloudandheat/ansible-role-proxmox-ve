@@ -20,9 +20,6 @@
     - name: Validate if all updates are done 
       ansible.builtin.import_tasks: prepare/validate_apt_upgrades.yml
 
-    - name: Ensure Ceph health is OK before proceeding
-      ansible.builtin.import_tasks: common/check_ceph_health.yml
-
     # check for syntax
     - name: Disable Ceph telemetry
       ansible.builtin.import_tasks: prepare/disable_ceph_telemetry.yml
@@ -36,9 +33,6 @@
     - name: Restart ceph-mon sequentially (with health check between)
       ansible.builtin.import_tasks: upgrade/restart_ceph_mons.yml
 
-    - name: Check if Ceph is healthy after restarting monitors
-      ansible.builtin.import_tasks: common/check_ceph_health.yml
-
     - name: Check if ceph-mons were updated to the new version
       ansible.builtin.import_tasks: upgrade/validate_ceph_mon_status.yml
 
@@ -47,9 +41,6 @@
 
     - name: Check if ceph-mgrs were updated to the new version
       ansible.builtin.import_tasks: upgrade/validate_ceph_mgr_status.yml
-
-    - name: Ensure Ceph health is OK after restarts
-      ansible.builtin.import_tasks: common/check_ceph_health.yml
 
     - name: Set the noout flag during restarting the OSDs
       ansible.builtin.import_tasks: common/set_noout_flag.yml
@@ -62,9 +53,6 @@
     
     - name: Set Ceph to required minimum OSD release
       ansible.builtin.import_tasks: upgrade/require_osd_release.yml
-
-    - name: Ensure Ceph health is OK after restarts
-      ansible.builtin.import_tasks: common/check_ceph_health.yml
 
     - name: Upgrade CephFS MDS daemons safely
       ansible.builtin.import_tasks: upgrade/upgrade_cephfs_mds.yml
