@@ -1,5 +1,4 @@
 ---
-
 - name: Prepare ceph update
   block:
     - name: Ensure Ceph health is OK before proceeding
@@ -16,8 +15,8 @@
 
     - name: Unset the noout flag for the OSDs
       ansible.builtin.import_tasks: common/unset_noout_flag.yml
-    
-    - name: Validate if all updates are done 
+
+    - name: Validate if all updates are done
       ansible.builtin.import_tasks: prepare/validate_apt_upgrades.yml
 
     # check for syntax
@@ -26,7 +25,6 @@
 
 - name: Conduct upgrade
   block:
-
     - name: Update APT cache on all nodes and do the distro upgrade, without reboot
       ansible.builtin.import_tasks: upgrade/ceph_apt_upgrades.yml
 
@@ -47,23 +45,22 @@
 
     - name: Restart the OSDs
       ansible.builtin.import_tasks: upgrade/restart_ceph_osds.yml
-    
+
     - name: Unset the noout flag during restarting the OSDs
       ansible.builtin.import_tasks: common/unset_noout_flag.yml
-    
+
     - name: Set Ceph to required minimum OSD release
       ansible.builtin.import_tasks: upgrade/require_osd_release.yml
 
     - name: Upgrade CephFS MDS daemons safely
       ansible.builtin.import_tasks: upgrade/upgrade_cephfs_mds.yml
 
-- name: Clean up 
+- name: Clean up
   block:
-   
     - name: Final Ceph health check
       ansible.builtin.import_tasks: common/check_ceph_health.yml
-    
-    - name: Enable ceph telemetry, if desired
+
+    - name: Enable ceph telemetry if desired
       ansible.builtin.import_tasks: cleanup/reenable_ceph_telemetry.yml
 
 - name: Acknowledge all healt warnings <- should never run unless triggert by calling with specific tag
@@ -71,5 +68,5 @@
     - never
     - chup_acknowledge_warnings
   block:
-     - name: acknowledge warnings
-       ansible.builtin.import_tasks: common/acknowledge_health_warns.yml
+    - name: Acknowledge warnings
+      ansible.builtin.import_tasks: common/acknowledge_health_warns.yml
