@@ -39,6 +39,6 @@
           - _pve_mig_strt != ''
         fail_msg: "HA migration strategy (variable pve_datacenter_options) is not configured
                   according to /etc/pve/datacenter.cfg or is not configured at all.
-                  Adapt the configuration to proceed."
+                  Adapt the configuration to prevent unexpected changes in behavior."
         success_msg: "HA migration strategy is configured according to /etc/pve/datacenter.cfg."
       when: _pve_dc_cfg_exists.stat.exists

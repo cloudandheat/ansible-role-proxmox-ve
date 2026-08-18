@@ -92,6 +92,7 @@ pve_ceph_version: "{{ pve_ceph_default_version }}"
 # pve_enable_enterprise_repository -> bool: Enable/Disable the enterprise-repository
 pve_enable_enterprise_repository: false
 # pve_debian_repository_lines -> list[str]: (Declarative) Debian OS apt sources list repository mirror line.
+# Only used for Debian version < 13
 pve_debian_repository_lines:
   - "deb http://deb.debian.org/debian/ {{ pve_debian_version }} main non-free-firmware"
   - "deb-src http://deb.debian.org/debian/ {{ pve_debian_version }} main non-free-firmware"
@@ -100,14 +101,16 @@ pve_debian_repository_lines:
   - "deb http://deb.debian.org/debian/ {{ pve_debian_version }}-updates main non-free-firmware"
   - "deb-src http://deb.debian.org/debian/ {{ pve_debian_version }}-updates main non-free-firmware"
 # pve_repository_line -> str: (Declarative) PVE apt sources list repository mirror line.
+# Only used for Debian version < 13
 # (Further information: https://pve.proxmox.com/wiki/Package_Repositories)
 pve_repository_line: "deb {{ pve_repository_uri }} {{ pve_debian_version }} pve-no-subscription"
-# NOTE: for Debian 13 deb822 repositories are used, which require a different configuration
+# pve_repository_uri -> str: (Declarative) URI for the Proxmox apt package repository
 pve_repository_uri: http://download.proxmox.com/debian/pve
 # pve_ceph_repository_line -> str: (Declarative) PVE Ceph apt sources list repository mirror line.
+# Only used for Debian version < 13
 # (Further information: https://pve.proxmox.com/wiki/Package_Repositories)
 pve_ceph_repository_line: "deb {{ pve_ceph_repository_uri }} {{ pve_debian_version }} {{ pve_ceph_debian_component }}"
-# NOTE: for Debian 13 deb822 repositories are used, which require a different configuration
+# pve_repository_uri -> str: (Declarative) URI for the Ceph apt package repository
 pve_ceph_repository_uri: http://download.proxmox.com/debian/ceph-{{ pve_ceph_version }}
 # pve_extra_uninstall_packages -> list[str]: (Irreversible) Names of apt packages to remove (purge).
 pve_extra_uninstall_packages: []
@@ -542,11 +545,12 @@ pve_ceph_enabled: false
 # pve_ceph_enhanced_enabled -> bool: (Irreversible) If an enhanced role should install and configure ceph for PVE. Mutually exclusive with pve_ceph_enabled.
 #                                                   NOTE: Requires pve_ceph_network to be set and correct.
 pve_ceph_enhanced_enabled: false
-
+# pve_ceph_disable_telemetry -> bool: (Irreversible) If set to false, telemetry is enabled for Ceph
 pve_ceph_disable_telemetry: true
-# Disable mostly for testing
+# pve_ceph_ignore_healthwarns -> bool: (Declarative) If set to true, Ceph health warnings
+#                                      do not interrupt the Ceph configuration of this role
 pve_ceph_ignore_healthwarns: false
-# Number of tries to recheck in 10 second intervalls, if the ceph has become healthy
+# pve_ceph_healthcheck_retries -> int: Number of tries to recheck in 10 second intervals if the ceph has become healthy
 pve_ceph_healthcheck_retries: 5
 
 # pve_ceph_network -> str: (Irreversible) Ceph public(/cluster) network in CIDR notation.

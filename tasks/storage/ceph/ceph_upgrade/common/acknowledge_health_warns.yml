@@ -24,7 +24,7 @@
       when: "_ceph_crash_new_before_length > 0"
       changed_when: true
 
-    - name: Archive crash reports
+    - name: List new crash reports
       ansible.builtin.command:
         cmd: "ceph crash ls-new"
       register: _ceph_crash_new_after
