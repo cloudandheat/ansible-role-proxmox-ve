@@ -26,7 +26,7 @@
         _pve_mig_strt: >-
           {{
             _pve_dc_cfg_content.content
-            | regex_findall('(?m)^ha:\s*shutdown_policy=([^\s]+)')
+            | regex_findall('ha:\s*shutdown_policy=([^\s]+)')
             | first
             | default('')
           }}
