@@ -4,9 +4,6 @@
     - name: Ensure Ceph health is OK before proceeding
       ansible.builtin.import_tasks: common/check_ceph_health.yml
 
-    - name: Validate datacenter.cfg migration strategy
-      ansible.builtin.import_tasks: prepare/check_migration_strategy.yml
-
     - name: Set the noout flag for the OSDs
       ansible.builtin.import_tasks: common/set_noout_flag.yml
 
