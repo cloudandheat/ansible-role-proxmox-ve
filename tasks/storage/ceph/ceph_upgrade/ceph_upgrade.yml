@@ -58,7 +58,7 @@
       ansible.builtin.import_tasks: common/check_ceph_health.yml
 
     - name: Enable ceph telemetry if desired
-      ansible.builtin.import_tasks: cleanup/reenable_ceph_telemetry.yml
+      ansible.builtin.import_tasks: cleanup/ceph_telemetry.yml
 
 - name: Acknowledge all healt warnings <- should never run unless triggert by calling with specific tag
   tags:

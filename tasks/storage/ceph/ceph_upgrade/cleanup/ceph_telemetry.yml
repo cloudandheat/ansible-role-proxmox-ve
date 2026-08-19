@@ -1,0 +1,20 @@
+---
+# Related: https://telemetry-public.ceph.com/d/ZFYuv1qWz/telemetry?orgId=1
+
+- name: "Disable sending cluster telemetry to Ceph project"
+  run_once: true
+  ansible.builtin.command:
+    cmd: ceph telemetry off
+  when: pve_ceph_disable_telemetry
+
+- name: "Enable sending cluster telemetry to Ceph project"
+  run_once: true
+  when: not pve_ceph_disable_telemetry
+  block:
+    - name: Enable telemetry
+      ansible.builtin.command:
+        cmd: ceph telemetry on --license sharing-1-0
+
+    - name: Enable perf channel
+      ansible.builtin.command:
+        cmd: ceph telemetry enable channel perf
