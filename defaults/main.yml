@@ -554,8 +554,9 @@ pve_ceph_ignore_healthwarns: false
 pve_ceph_healthcheck_retries: 5
 
 # pve_ceph_network -> str: (Irreversible) Ceph public(/cluster) network in CIDR notation.
-#                                         NOTE: Aliased by "ceph_public_ip: <host_ip_address>/<netmask>" host variable.
-pve_ceph_network: "{{ (ansible_default_ipv4.network + '/' + ansible_default_ipv4.netmask) | ansible.utils.ipaddr('net') }}"
+# Default: IP and subnetz this is used by Ansible. Parsing is expressiv, this is why this expression is hard to read.
+# NOTE: Aliased by "ceph_public_ip: <host_ip_address>/<netmask>" host variable.
+pve_ceph_network: "{{ ceph_public_ip | default('') | ansible.utils.ipaddr('host/prefix') | default((ansible_default_ipv4.address + '/' + (ansible_default_ipv4.network + '/' + ansible_default_ipv4.netmask) | ansible.utils.ipaddr('prefix') | string), true) }}"
 # pve_ceph_cluster_network -> Optional[str]: (Irreversible) Separate Ceph cluster network if the Ceph public network should be different.
 #                                            NOTE: Aliased by "ceph_cluster_ip: <host_ip_address>/<netmask>" host variable.
 # (for more information, see https://pve.proxmox.com/pve-docs/chapter-pveceph.html#pve_ceph_install_wizard)
