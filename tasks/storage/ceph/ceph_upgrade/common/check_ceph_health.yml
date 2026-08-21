@@ -1,6 +1,7 @@
 ---
 - name: Test for a healthy ceph cluster
   run_once: true
+  when: (pve_ceph_enabled | bool) or (pve_ceph_enhanced_enabled | bool)
   block:
     - name: Get detailed Ceph health status
       ansible.builtin.command:
