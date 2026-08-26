@@ -1,8 +1,8 @@
 # pve-engine
 
-Installs and configures **P**roxmox **V**irtual **E**nvironment 8.x/9.x via Ansible
+Installs and configures **P**roxmox **V**irtual **E**nvironment 8.x/9.x via Ansible.
 
-This repository was originaly a fork of https://github.com/lae/ansible-role-proxmox 
+This repository was originally a fork of https://github.com/lae/ansible-role-proxmox. It is now actively maintained on [Gitlab](https://gitlab.com/cloudandheat/pve/engine) and mirrored to [Github](https://github.com/cloudandheat/ansible-role-proxmox-ve). For [issues](https://gitlab.com/cloudandheat/pve/engine/-/work_items), feature requests and contributions, please refer to the Gitlab repository. 
 
 **Notice: this repository is not maintained by the Proxmox Server Solutions GmbH.**
 **So they are not liable for any configuration issues based by the usage of this piece of software.**
