@@ -397,7 +397,7 @@
               changed_when: true
 
             - name: Create journal pool
-              ansible.builtin.command: "pveceph pool create {{ pve_rbd_journal_pool }} --application rbd"
+              ansible.builtin.command: "pveceph pool create {{ pve_rbd_journal_pool }} --application rbd --pg_autoscale_mode on"
 
             - name: Set global journal pool
               ansible.builtin.command: "ceph config set global rbd_journal_pool {{ pve_rbd_journal_pool }}"

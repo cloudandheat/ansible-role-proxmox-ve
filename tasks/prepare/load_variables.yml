@@ -63,13 +63,9 @@
   when: "pve_ceph_enabled | bool or pve_ceph_enhanced_enabled | bool"
   block:
 
-    - name: Ensure pve_ceph_network is normalized in the host facts
-      ansible.builtin.set_fact:
-        pve_ceph_network: "{{ ceph_public_ip | default(pve_ceph_network) | ansible.utils.ipaddr('host/prefix') }}"
-
-    - name: Ensure pve_ceph_network is a valid ip address
+    - name: Ensure pve_ceph_network is a valid ip address in CIDR notation
       ansible.builtin.assert:
-        that: "pve_ceph_network | default('', true) | ansible.utils.ipaddr('address') is ansible.utils.ip_address"
+        that: "pve_ceph_network | ansible.utils.ipaddr('address') is ansible.utils.ip_address"
         msg: "The specified Ceph network ip address (pve_ceph_network={{ pve_ceph_network }})
               of host {{ inventory_hostname }} is not a valid IP address in CIDR notation!"
 

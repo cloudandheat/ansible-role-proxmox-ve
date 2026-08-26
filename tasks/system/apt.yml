@@ -1,19 +1,9 @@
 ---
 # Must be run before any other apt task or else apt task will fail on missing auth
-# This is only done on debian 12 and below, because since debian 13 the sources
-# have changed, which requires another workaround later
 - name: Remove automatically created VE Enterprise repo configuration
   ansible.builtin.file:
     path: "/etc/apt/sources.list.d/pve-enterprise.list"
     state: absent
-
-- name: Set debian mirrors in /etc/apt/sources.list
-  ansible.builtin.template:
-    src: "system/apt/sources.list.j2"
-    dest: "/etc/apt/sources.list"
-    mode: "0644"
-  register: _pve_debian_repo
-  when: "pve_manage_debian_repository | bool"
 
 - name: Trust Proxmox' packaging key on Debian < 12
   ansible.builtin.apt_key:
@@ -29,28 +19,8 @@
     mode: "0644"
   when: "ansible_distribution_major_version | int >= 12"
 
-- name: Set the Proxmox apt source list file
-  ansible.builtin.template:
-    src: "system/apt/pve.list.j2"
-    dest: "/etc/apt/sources.list.d/pve.list"
-    backup: true
-    mode: "0644"
-    # validate: "apt-get update -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/%s"
-  register: _pve_repo
-  when: "ansible_distribution_major_version | int <= 12"
-
 - name: Setup Proxmox repositories
   ansible.builtin.import_tasks: repositories.yml
-
-- name: Set the Ceph apt source list file
-  ansible.builtin.template:
-    src: "system/apt/pve_ceph.list.j2"
-    dest: "/etc/apt/sources.list.d/pve_ceph.list"
-    backup: true
-    mode: "0644"
-    # validate: "apt-get update -o Dir::Etc::sourceParts=/etc/apt/sources.list.d/%s"
-  register: _pve_ceph_repo
-  when: "(pve_ceph_enabled | bool) or (pve_ceph_enhanced_enabled | bool)"
 
 - name: Manage PVE-Kernel version pinning
   block:
@@ -100,10 +70,7 @@
     upgrade: "safe"
     allow_downgrade: true
   until: "_system_upgrade is succeeded"
-  when:
-    "_pve_debian_repo.changed | bool
-    or _pve_repo.changed | bool
-    or _pve_ceph_repo.changed | bool"
+  when: _pve_repositories.changed | bool
   retries: 3
   register: _system_upgrade
 
@@ -120,7 +87,7 @@
 
 - name: Setup Proxmox repositories
   ansible.builtin.import_tasks: repositories.yml
-  
+
 - name: Install Proxmox VE and related packages
   ansible.builtin.apt:
     update_cache: true
@@ -129,11 +96,6 @@
   until: "_proxmox_install is succeeded"
   retries: 2
   register: _proxmox_install
-
-- name: Remove automatically created VE Enterprise repo source (again) after PVE install
-  ansible.builtin.file:
-    path: "/etc/apt/sources.list.d/pve-enterprise.list"
-    state: absent
 
 - name: Remove unnecessary or unwanted apt packages
   ansible.builtin.apt:
