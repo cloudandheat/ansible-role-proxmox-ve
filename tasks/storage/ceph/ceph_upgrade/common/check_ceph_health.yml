@@ -10,10 +10,11 @@
       vars:
         _failed_filter: "{{ _ceph_health_detail_raw.stdout | from_json | json_query('status') }}"
       failed_when:
-        - "_failed_filter != 'HEALTH_OK'"
-        - not pve_ceph_ignore_healthwarns
+        (_failed_filter == 'HEALTH_WARN' and (pve_ceph_ignore_healthwarns or pve_ceph_ignore_healtherrors)) or
+        (_failed_filter == 'HEALTH_ERROR' and pve_ceph_ignore_healtherrors)
       retries: "{{ pve_ceph_healthcheck_retries }}"
       delay: 10
+      changed_when: false
 
   rescue:
 
@@ -28,6 +29,7 @@
       ansible.builtin.command:
         cmd: "ceph crash ls -f json"
       register: _ceph_crash_ls
+      changed_when: false
 
     - name: Fail if health is not OK
       ansible.builtin.fail:

@@ -550,8 +550,12 @@ pve_ceph_enhanced_enabled: false
 # Related: https://telemetry-public.ceph.com/d/ZFYuv1qWz/telemetry?orgId=1
 pve_ceph_disable_telemetry: true
 # pve_ceph_ignore_healthwarns -> bool: (Declarative) If set to true, Ceph health warnings
-#                                      do not interrupt the Ceph configuration of this role
+#                                      do not interrupt the Ceph configuration of this roles.
+# Overwritten by pve_ceph_ignore_healtherrors.
 pve_ceph_ignore_healthwarns: false
+# pve_ceph_ignore_healtherrors -> bool: (Declarative) If set to true, Ceph health warnings and errors
+#                                      do not interrupt the Ceph configuration of this role
+pve_ceph_ignore_healtherrors: false
 # pve_ceph_healthcheck_retries -> int: Number of tries to recheck in 10 second intervals if the ceph has become healthy
 pve_ceph_healthcheck_retries: 5
 
