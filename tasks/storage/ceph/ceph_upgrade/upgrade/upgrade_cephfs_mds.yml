@@ -1,0 +1,123 @@
+---
+- name: Gather a list of all MDS in the cluster
+  ansible.builtin.command:
+    cmd: "ceph mds metadata -f json"
+  register: _cephfs_mds_all_raw
+
+- name: Extract name and hostname of the mds
+  ansible.builtin.set_fact:
+    _cephfs_mds_all: "{{ _cephfs_mds_all_raw.stdout | from_json | json_query(jquery) }}"
+  vars:
+    jquery: '[].{ name: name, hostname: hostname }'
+
+- name: Gather CephFS filesystems
+  ansible.builtin.command:
+    cmd: ceph fs ls -f json
+  register: _cephfs_list_raw
+  changed_when: false
+
+- name: Create list of filesystem names 
+  ansible.builtin.set_fact:
+    _cephfs_names: "{{ _cephfs_list_raw.stdout | from_json | json_query(jquery) }}"
+  vars:
+    jquery: "[*].name"
+
+- name: Disable standby_replay for single cephfs
+  ansible.builtin.command: 
+    cmd: "ceph fs set {{ item }} allow_standby_replay false"
+  loop: "{{ _cephfs_names }}"
+  run_once: true
+
+- name: Gather the operating mds data settings
+  ansible.builtin.command:
+    cmd: "ceph fs get {{ item }} -f json"
+  loop: "{{ _cephfs_names }}"
+  register: _cephfs_mds_ops_raw
+
+- name: Extract MDS data
+  ansible.builtin.set_fact:
+    _cephfs_mds_ops_raw_results: "{{ _cephfs_mds_ops_raw_results | default([]) + [ item.stdout | from_json ] }}"
+  loop: "{{ _cephfs_mds_ops_raw.results }}"
+
+- name: Extract the current max amount of ceph mds server per cephfs
+  ansible.builtin.set_fact:
+    _cephfs_mds_ops_max: "{{ _cephfs_mds_ops_raw_results | json_query(jquery) }}"
+  vars:
+    jquery: "[*].mdsmap.{ fs_name: fs_name, max_mds: max_mds}"
+
+- name: Reduce the number of available mds for each cephfs to one 
+  ansible.builtin.command:
+    cmd: "ceph fs set {{ item }} max_mds 1"
+  loop: "{{ _cephfs_names }}"
+  run_once: true
+
+- name: Display until the maintanance amount of max_mds is set
+  ansible.builtin.command:
+    cmd: "ceph status -f json"
+  register: _cephfs_mds_maint_raw
+
+- name: Display the current settings of fsmap 
+  ansible.builtin.debug:
+    msg: "{{ _cephfs_mds_maint_raw.stdout | from_json | json_query(jquery) }}"
+  vars:
+    jquery: 'fsmap'
+
+# After Testing filtering for 'fsmap.up' should provide the currently highest amount of mds per cephfs
+- name: Wait until the maintanance amount of max_mds is set
+  ansible.builtin.command:
+    cmd: "ceph status -f json"
+  register: _cephfs_mds_maint_raw
+  failed_when: "_cephfs_mds_maint_raw.stdout | from_json | json_query(jquery) > 1"
+  vars:
+    jquery: 'fsmap.up'
+  retries: 5
+  delay: 20
+  run_once: true
+
+- name: Gather a list of currently used mds
+  ansible.builtin.set_fact:
+    _cephfs_mds_maint_active_names: "{{ _cephfs_mds_maint_raw.stdout | from_json | json_query(jquery) }}"
+  vars:
+    jquery: 'fsmap.by_rank[].name'
+
+- name: Determ the maintanance standby mds
+  ansible.builtin.set_fact:
+    _cephfs_mds_maint_active: "{{ _cephfs_mds_all | selectattr('name','in', _cephfs_mds_maint_active_names ) | list }}" 
+    _cephfs_mds_maint_standby: "{{ _cephfs_mds_all | rejectattr('name','in', _cephfs_mds_maint_active_names ) | list }}" 
+
+- debug:
+    var: _cephfs_mds_all
+
+- debug:
+    var: _cephfs_mds_maint_active
+
+- debug:
+    var: _cephfs_mds_maint_standby
+
+- name: stop the standby mds
+  ansible.builtin.command:
+    cmd: "systemctl stop ceph-mds@{{ item.name }}.service"
+  loop: "{{ _cephfs_mds_maint_standby }}"
+  when: "item.hostname == ansible_hostname"
+
+- name: Restart the active mds server
+  ansible.builtin.command:
+    cmd: "systemctl restart ceph-mds@{{ item.name }}.service"
+  loop: "{{ _cephfs_mds_maint_active }}"
+  when: "item.hostname == ansible_hostname"
+  retries: 4
+  delay: 20
+  throttle: 1
+  register: _cephfs_mds_maint_active_restart
+
+- name: Restart the standby mds previously stopped
+  ansible.builtin.command:
+    cmd: "systemctl start ceph-mds@{{ item.name }}.service"
+  loop: "{{ _cephfs_mds_maint_standby }}"
+  when: "item.hostname == ansible_hostname"
+
+- name: Set the mds_max value for operations 
+  ansible.builtin.command:
+    cmd: "ceph fs set {{ item.fs_name }} max_mds {{ item.max_mds }}"
+  loop: "{{ _cephfs_mds_ops_max }}"
+  run_once: true

@@ -1,0 +1,6 @@
+---
+- name: Set required OSD release to {{ pve_ceph_version }}
+  run_once: true
+  ansible.builtin.command:
+    cmd: "ceph osd require-osd-release {{ pve_ceph_version }}"
+  changed_when: true

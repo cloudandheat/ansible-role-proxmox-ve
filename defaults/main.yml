@@ -41,15 +41,6 @@ pve_ntp_chrony_sources_file: "/etc/chrony/sources.d/ansible-configured.sources"
 #   - address: "pool.ntp.org"
 #     type: "pool"
 
-# NOTE: for Debian 13 deb822 repositories are used, which require a different configuration
-pve_repository:
-  uris: http://download.proxmox.com/debian/pve
-  # suites -> str: Name of the debian distribution. For example "trixie"
-  suites: "{{ ansible_distribution_release }}"
-  components: pve-no-subscription
-# pve_enable_enterprise_repository -> bool: Enable/Disable the enterprise-repository in Debian13/PVE9 setups
-pve_enable_enterprise_repository: false
-
 ### PVEPROXY + SSL/TLS
 # pve_pveproxy_defaults -> Optional dict={
 # <key> -> str="viablae config key" : <value> -> str="viable config value"
@@ -93,9 +84,15 @@ pve_sshd_strict_include: true
 ### APT Packages & Repository
 # pve_manage_debian_repository -> bool: (Irreversible) If the debian OS repository mirrors should be overwritten with pve_debian_repository_lines.
 pve_manage_debian_repository: true
-# pve_debian_version -> str: (Declarative) The hosts debian os release name.
-pve_debian_version: "bookworm"
+# pve_debian_version -> str: (Declarative) The host's Debian OS release name, defaults to the current version.
+pve_debian_version: "{{ ansible_distribution_release }}"
+# pve_ceph_version -> str: (Declarative) The version of Ceph that will be installed.
+#                          Default values are defined for every Proxmox/Debian release.
+pve_ceph_version: "{{ pve_ceph_default_version }}"
+# pve_enable_enterprise_repository -> bool: Enable/Disable the enterprise-repository
+pve_enable_enterprise_repository: false
 # pve_debian_repository_lines -> list[str]: (Declarative) Debian OS apt sources list repository mirror line.
+# Only used for Debian version < 13
 pve_debian_repository_lines:
   - "deb http://deb.debian.org/debian/ {{ pve_debian_version }} main non-free-firmware"
   - "deb-src http://deb.debian.org/debian/ {{ pve_debian_version }} main non-free-firmware"
@@ -104,11 +101,17 @@ pve_debian_repository_lines:
   - "deb http://deb.debian.org/debian/ {{ pve_debian_version }}-updates main non-free-firmware"
   - "deb-src http://deb.debian.org/debian/ {{ pve_debian_version }}-updates main non-free-firmware"
 # pve_repository_line -> str: (Declarative) PVE apt sources list repository mirror line.
+# Only used for Debian version < 13
 # (Further information: https://pve.proxmox.com/wiki/Package_Repositories)
-pve_repository_line: "deb http://download.proxmox.com/debian/pve {{ pve_debian_version }} pve-no-subscription"
+pve_repository_line: "deb {{ pve_repository_uri }} {{ pve_debian_version }} pve-no-subscription"
+# pve_repository_uri -> str: (Declarative) URI for the Proxmox apt package repository
+pve_repository_uri: http://download.proxmox.com/debian/pve
 # pve_ceph_repository_line -> str: (Declarative) PVE Ceph apt sources list repository mirror line.
+# Only used for Debian version < 13
 # (Further information: https://pve.proxmox.com/wiki/Package_Repositories)
-pve_ceph_repository_line: "deb http://download.proxmox.com/debian/ceph-{{ pve_ceph_default_version }} {{ pve_debian_version }} no-subscription"
+pve_ceph_repository_line: "deb {{ pve_ceph_repository_uri }} {{ pve_debian_version }} {{ pve_ceph_debian_component }}"
+# pve_repository_uri -> str: (Declarative) URI for the Ceph apt package repository
+pve_ceph_repository_uri: http://download.proxmox.com/debian/ceph-{{ pve_ceph_version }}
 # pve_extra_uninstall_packages -> list[str]: (Irreversible) Names of apt packages to remove (purge).
 pve_extra_uninstall_packages: []
 # pve_extra_packages -> list[str]: (Irreversible) Names of additional apt packages to install on each host.
@@ -438,8 +441,6 @@ pve_cluster_ha_manager_init: true
 # }: (Declarative) Custom PVE Datacenter options.
 # Example: {"bwlimit": "default=1048576", "crs": "ha=basic,ha-rebalance-on-start=1", "ha": "shutdown_policy=migrate", …}
 pve_datacenter_options: {}
-# pve_datacenter_cfg -> dict: (Legacy) key-values for PVE datacenter options (datacenter.cfg).
-pve_datacenter_cfg: "{{ pve_datacenter_options }}"
 
 ### PVE Storage definitions
 # pve_storages -> dict={
@@ -544,9 +545,24 @@ pve_ceph_enabled: false
 # pve_ceph_enhanced_enabled -> bool: (Irreversible) If an enhanced role should install and configure ceph for PVE. Mutually exclusive with pve_ceph_enabled.
 #                                                   NOTE: Requires pve_ceph_network to be set and correct.
 pve_ceph_enhanced_enabled: false
+# pve_ceph_disable_telemetry -> bool: (Declarative) If set to false, telemetry data of this cluster is sent to the Ceph
+# development team
+# Related: https://telemetry-public.ceph.com/d/ZFYuv1qWz/telemetry?orgId=1
+pve_ceph_disable_telemetry: true
+# pve_ceph_ignore_healthwarns -> bool: (Declarative) If set to true, Ceph health warnings
+#                                      do not interrupt the Ceph configuration of this roles.
+# Overwritten by pve_ceph_ignore_healtherrors.
+pve_ceph_ignore_healthwarns: false
+# pve_ceph_ignore_healtherrors -> bool: (Declarative) If set to true, Ceph health warnings and errors
+#                                      do not interrupt the Ceph configuration of this role
+pve_ceph_ignore_healtherrors: false
+# pve_ceph_healthcheck_retries -> int: Number of tries to recheck in 10 second intervals if the ceph has become healthy
+pve_ceph_healthcheck_retries: 5
+
 # pve_ceph_network -> str: (Irreversible) Ceph public(/cluster) network in CIDR notation.
-#                                         NOTE: Aliased by "ceph_public_ip: <host_ip_address>/<netmask>" host variable.
-pve_ceph_network: "{{ (ansible_default_ipv4.network + '/' + ansible_default_ipv4.netmask) | ansible.utils.ipaddr('net') }}"
+# Default: IP and subnetz this is used by Ansible. Parsing is expressiv, this is why this expression is hard to read.
+# NOTE: Aliased by "ceph_public_ip: <host_ip_address>/<netmask>" host variable.
+pve_ceph_network: "{{ ceph_public_ip | default('') | ansible.utils.ipaddr('host/prefix') | default((ansible_default_ipv4.address + '/' + (ansible_default_ipv4.network + '/' + ansible_default_ipv4.netmask) | ansible.utils.ipaddr('prefix') | string), true) }}"
 # pve_ceph_cluster_network -> Optional[str]: (Irreversible) Separate Ceph cluster network if the Ceph public network should be different.
 #                                            NOTE: Aliased by "ceph_cluster_ip: <host_ip_address>/<netmask>" host variable.
 # (for more information, see https://pve.proxmox.com/pve-docs/chapter-pveceph.html#pve_ceph_install_wizard)
@@ -912,20 +928,3 @@ pve_rollout_backup:
   enabled: false
   mode: "snapshot"
   storage: "local"
-
-
-### CEPH-UPGRADE configuration
-
-# default variables
-chup_disable_telemetry: true
-chup_use_enterprise_repo: false
-chup_pve_min_version: "8.2"
-chup_ceph_min_version: "18.2.4"
-# Disable mostly for testing
-chup_ignore_healthwarns: false
-# Number of tries to recheck in 10 second intervalls, if the ceph has become healthy
-chup_healthcheck_retries: 5
-# allowed values are: freeze, failover, migrate, conditional
-chup_datacenter_ha_settings: "migrate"
-chup_old_ceph_version_name: "reef"
-chup_new_ceph_version_name: "squid"
