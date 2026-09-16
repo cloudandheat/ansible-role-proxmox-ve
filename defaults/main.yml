@@ -826,6 +826,11 @@ pve_ceph_crush_rules: []
 # }]: (Declarative) Custom CRUSH bucket hierarchy definition. Default root and host buckets can always be omitted and referenced by name.
 pve_ceph_crush_buckets: []
 
+# After a Ceph OSD service has been restarted, it must be waited for all PG to be active+clean before continuing.
+# pve_ceph_pg_check_retries -> int: How often to check for all PGs being active+clean before failing
+pve_ceph_pg_check_retries: 10
+# pve_ceph_pg_check_delay -> int: How long to wait in seconds before next retry
+pve_ceph_pg_check_delay: 10
 
 ### ZFS
 # pve_zfs_enabled -> bool: (Declarative) Whether to install and configure ZFS packages

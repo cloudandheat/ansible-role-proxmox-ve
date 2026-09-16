@@ -1,69 +1,38 @@
 ---
-- name: Prepare ceph update
+- name: Check if ceph upgrade is necessary
+  run_once: true
   block:
-    - name: Ensure Ceph health is OK before proceeding
-      ansible.builtin.import_tasks: common/check_ceph_health.yml
+    - name: Import set ceph facts
+      ansible.builtin.import_tasks: ../set_ceph_facts.yml
 
-    - name: Set the noout flag for the OSDs
-      ansible.builtin.import_tasks: common/set_noout_flag.yml
+    - name: Retrieve version diversity among all ceph daemons in the cluster
+      ansible.builtin.command: "ceph versions --format json"
+      register: _pve_ceph_versions
+      when: _pve_is_ceph_installed
+      changed_when: false
 
-    - name: Run OS-Upgrades
-      ansible.builtin.import_tasks: prepare/apt_upgrades.yml
+    - name: Set_fact _pve_force_ceph_upgrade
+      ansible.builtin.set_fact:
+        _pve_force_ceph_upgrade: true
+      # We cannot assign never and force_ceph_upgrade as tags here
+      # because Ansibles tag inheritance would override it.
+      when: "'force_ceph_upgrade' in ansible_run_tags"
 
-    - name: Unset the noout flag for the OSDs
-      ansible.builtin.import_tasks: common/unset_noout_flag.yml
+    - name: Set_fact _pve_do_ceph_upgrade
+      ansible.builtin.set_fact:
+        _pve_do_ceph_upgrade: true
+      when:
+        - "{{ pve_ceph_enhanced_enabled and _pve_is_ceph_installed }}"
+        - "{{ (_pve_ceph_versions.stdout | from_json | json_query('overall') | length != 1) or (_pve_active_ceph_version != pve_ceph_version) or (_pve_force_ceph_upgrade | default(false)) }}"
 
-    - name: Validate if all updates are done
-      ansible.builtin.import_tasks: prepare/validate_apt_upgrades.yml
+    - name: Ceph upgrade has been skipped. Show possible reasons.
+      ansible.builtin.debug:
+        msg:
+          - "- Ceph shall not be installed (pve_ceph_enhanced_enabled is False)"
+          - "- There is no ceph installed (nothing to upgrade)"
+          - "- All ceph daemons are on the target version already as specified by pve_ceph_version and Ansible tag 'force_ceph_upgrade' is not used"
+      when: "{{ not _pve_do_ceph_upgrade | default(false) }}"
 
-    # check for syntax
-    - name: Disable Ceph telemetry
-      ansible.builtin.import_tasks: prepare/disable_ceph_telemetry.yml
-
-- name: Conduct upgrade
-  block:
-    - name: Update APT cache on all nodes and do the distro upgrade, without reboot
-      ansible.builtin.import_tasks: upgrade/ceph_apt_upgrades.yml
-
-    - name: Restart ceph-mon sequentially (with health check between)
-      ansible.builtin.import_tasks: upgrade/restart_ceph_mons.yml
-
-    - name: Check if ceph-mons were updated to the new version
-      ansible.builtin.import_tasks: upgrade/validate_ceph_mon_status.yml
-
-    - name: Restart ceph-mgr services (only if running)
-      ansible.builtin.import_tasks: upgrade/restart_ceph_mgr.yml
-
-    - name: Check if ceph-mgrs were updated to the new version
-      ansible.builtin.import_tasks: upgrade/validate_ceph_mgr_status.yml
-
-    - name: Set the noout flag during restarting the OSDs
-      ansible.builtin.import_tasks: common/set_noout_flag.yml
-
-    - name: Restart the OSDs
-      ansible.builtin.import_tasks: upgrade/restart_ceph_osds.yml
-
-    - name: Unset the noout flag during restarting the OSDs
-      ansible.builtin.import_tasks: common/unset_noout_flag.yml
-
-    - name: Set Ceph to required minimum OSD release
-      ansible.builtin.import_tasks: upgrade/require_osd_release.yml
-
-    - name: Upgrade CephFS MDS daemons safely
-      ansible.builtin.import_tasks: upgrade/upgrade_cephfs_mds.yml
-
-- name: Clean up
-  block:
-    - name: Final Ceph health check
-      ansible.builtin.import_tasks: common/check_ceph_health.yml
-
-    - name: Enable ceph telemetry if desired
-      ansible.builtin.import_tasks: cleanup/ceph_telemetry.yml
-
-- name: Acknowledge all healt warnings <- should never run unless triggert by calling with specific tag
-  tags:
-    - never
-    - chup_acknowledge_warnings
-  block:
-    - name: Acknowledge warnings
-      ansible.builtin.import_tasks: common/acknowledge_health_warns.yml
+- name: Do the actual ceph upgrade
+  ansible.builtin.import_tasks: do_upgrade.yml
+  when: _pve_do_ceph_upgrade | default(false)

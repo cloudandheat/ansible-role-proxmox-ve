@@ -1,0 +1,11 @@
+---
+- name: Waiting for clean pgs...
+  ansible.builtin.command: "ceph pg stat --format json"
+  register: _pve_ceph_pg_state
+  until: >
+    (((_pve_ceph_pg_state.stdout | from_json).pg_summary.num_pg_by_state | length) > 0)
+    and
+    (((_pve_ceph_pg_state.stdout | from_json).pg_summary.num_pg_by_state | selectattr('name', 'search', '^active\\+clean') | map(attribute='num') | list | sum) == (_pve_ceph_pg_state.stdout | from_json).pg_summary.num_pgs)
+  changed_when: false
+  retries: "{{ pve_ceph_pg_check_retries }}"
+  delay: "{{ pve_ceph_pg_check_delay }}"
