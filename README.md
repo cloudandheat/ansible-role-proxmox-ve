@@ -275,6 +275,25 @@ As `SERVER_IP` the IP of each of the provisioned nodes can be used.
 
 Initial login with user-name and password of the root-user of the PAM realm
 
+### Ceph Release Upgrades
+
+Unlike during normal software updates where Ceph packets are only updated to a newer patch version, the Ceph upgrade tasks perform a Ceph release upgrade, for example from _squid_ to _tentacle_.
+The Ceph upgrade tasks run if the all tag is used (which is the default) and the tag `ceph_upgrade` is specified and/or not skipped.
+
+However, even if the Ceph upgrade is to be executed by tag, it only really makes changes if:
+* Ceph is to be installed as per Ansible variable (`pve_ceph_enhanced_enabled = true`)
+* Ceph is actually installed on the cluster
+* Ceph is not already on the target release or
+* Different versions of Ceph daemons running in the cluster
+
+Use the `ceph_upgrade` tag in order to run the Ceph upgrade only. For Ceph upgrade only, a minimal inventory is sufficient. Required variables are:
+```yaml
+pve_ceph_enhanced_enabled: true
+pve_ceph_version: "TARGETRELEASE" # E.g. "tentacle"
+```
+
+Specify the tag `force_ceph_upgrade` to run the upgrade even if Ceph is on the target version already and there are no different versions of Ceph daemons in the cluster.
+
 ## Vagrant Test Setup
 
 In order to make tests, especially with different Debian version, faster and more easy, there is a vagrant script available to deploy a local test environment of 3 virtual nodes with 3 OSDs per node and runs the ansible role within them.
@@ -380,6 +399,7 @@ Vagrant-actions:
 - access webui of the deployed proxmox by entering `https://10.10.111.11:8006` in your local browser. This address is defined in the Vagrantfile and points directly to the first instance. There is a pre-defined test admin user. Select the Realm `Proxmox VE authentication server` with username `adminuser` and password `asdfasdf` to login as this user. If you rolled out the vagrant setup on a remote system, like a VM in the cloud, then you can use an ssh-tunnel like `ssh -L 8006:10.10.111.11:8006 <USER>@<REMOTE_ADDRESS>` and then access the dashboard via `https://127.0.0.1:8006`.
 
 #### Tags
+
 This role offers two options to configure task execution:
 - **configuration variables** defined in the inventory (or the [defaults](/defaults/main.yml)) define the desired state of the cluster
 - **[tags](https://docs.ansible.com/projects/ansible/latest/playbook_guide/playbooks_tags.html)** specify the tasks to be executed, regardless of the configuration. If you do not want this role to manage certain features of Proxmox, this is the way to configure it. 

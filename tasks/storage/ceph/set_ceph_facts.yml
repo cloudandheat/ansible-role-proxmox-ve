@@ -1,0 +1,23 @@
+---
+- name: Set ceph facts
+  run_once: true
+  block:
+    - name: Detect if ceph is installed
+      ansible.builtin.command: "ceph version"
+      ignore_errors: true
+      changed_when: false
+      register: _pve_ceph_detection
+
+    - name: Set_fact _pve_is_ceph_installed
+      ansible.builtin.set_fact:
+        _pve_is_ceph_installed: "{{ _pve_ceph_detection.rc == 0 }}"
+
+    - name: Retrieve ceph version in cluster
+      ansible.builtin.command: "ceph mon dump --format json"
+      changed_when: false
+      register: _pve_ceph_mon_dump
+      when: _pve_is_ceph_installed
+
+    - name: Set_fact _pve_active_ceph_version
+      ansible.builtin.set_fact:
+        _pve_active_ceph_version: "{{ (_pve_ceph_mon_dump.stdout | from_json | json_query('min_mon_release_name')) if _pve_is_ceph_installed else None }}"
