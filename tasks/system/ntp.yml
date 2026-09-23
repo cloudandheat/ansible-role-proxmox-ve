@@ -16,9 +16,54 @@
   when: "pve_ntp_sources is not defined"
   register: _pve_chrony_ntp_sources_remove
 
+- name: Disable other chrony NTP sources
+  block:
+    - name: Disable vendor chrony NTP sources
+      ansible.builtin.lineinfile:
+        path: "/etc/chrony/chrony.conf"
+        regexp: '^(pool|server)(.*)$'
+        line: '# Disabled by Ansible role pve-engine: \1\2'
+        backrefs: yes
+      register: _pve_chrony_ntp_disable_vendor
+
+    - name: List chrony source files in /etc/chrony/conf.d
+      ansible.builtin.find:
+        paths: /etc/chrony/sources.d
+        file_type: file
+        patterns: "*.sources"
+        excludes:
+          - "{{ pve_ntp_chrony_sources_file | basename}}"
+      register: _pve_ntp_chrony_source_files
+
+    - name: Delete other chrony sources files in /etc/chrony/conf.d
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      with_items: "{{ _pve_ntp_chrony_source_files['files'] }}"
+      register: _pve_ntp_chrony_remove_chrony_source_files
+  when:
+    - "pve_ntp_sources is defined"
+    - "not pve_ntp_keep_other_sources | default(false)"
+
+- name: Re-enable chrony vendor NTP sources
+  ansible.builtin.lineinfile:
+    path: "/etc/chrony/chrony.conf"
+    regexp: '^# Disabled by Ansible role pve-engine: (.*)$'
+    line: '\1'
+    backrefs: yes
+  register: _pve_chrony_ntp_enable_vendor
+  when: >
+    pve_ntp_sources is not defined or
+    (pve_ntp_sources is defined and pve_ntp_keep_other_sources | default(false))
+
 # Why not a handler? Because nodes shall synchronize to NTP as soon as possible.
 - name: restart chrony
   systemd:
     name: chrony.service
     state: restarted
-  when: _pve_chrony_ntp_sources_create.changed or _pve_chrony_ntp_sources_remove.changed
+  when: >
+    _pve_chrony_ntp_sources_create.changed or
+    _pve_chrony_ntp_sources_remove.changed or
+    _pve_chrony_ntp_disable_vendor.changed or
+    _pve_ntp_chrony_remove_chrony_source_files.changed or
+    _pve_chrony_ntp_enable_vendor.changed

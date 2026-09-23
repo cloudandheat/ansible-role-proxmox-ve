@@ -41,6 +41,11 @@ pve_ntp_chrony_sources_file: "/etc/chrony/sources.d/ansible-configured.sources"
 #   - address: "pool.ntp.org"
 #     type: "pool"
 
+# pve_ntp_keep_other_sources -> bool: If pve_ntp_sources is set (see above), all other NTP sources configured in /etc/chrony/chrony.conf
+#                                     will be disabled and all other files in /etc/chrony/sources.d/ will be removed UNLESS
+#                                     pve_ntp_keep_other_sources is true.
+pve_ntp_keep_other_sources: false
+
 ### PVEPROXY + SSL/TLS
 # pve_pveproxy_defaults -> Optional dict={
 # <key> -> str="viablae config key" : <value> -> str="viable config value"

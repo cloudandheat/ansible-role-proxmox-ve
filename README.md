@@ -108,6 +108,10 @@ pve_ntp_sources:
   - "ntp1.example.com"
 ```
 
+By default, if `pve_ntp_sources` is defined, all other NTP sources will be un-configured, which is that in `/etc/chrony/chrony.conf`
+sources will be commented out and `*.sources` file in `/etc/chrony/sources.d` other than our own will be removed permanently.
+In order to prevent that behavior set `pve_ntp_keep_other_sources` to `true`.
+
 Please refer to `defaults/main.yml` for more details.
 
 ### Ceph Storage For Multi-node Installation
