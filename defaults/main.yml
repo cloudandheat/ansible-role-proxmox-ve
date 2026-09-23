@@ -12,10 +12,21 @@ pve_manage_etc_hosts: true
 # Examples: "{{ ansible_hostname }}.{{ pve_domain }}" to append <pve_domain> (RECOMMENDED!)
 #          "{{ inventory_hostname }}" to reset the hostname to the inventory declared one.
 pve_hostname_rename: null
-# pve_domain -> str: (Declarative) Domain in which the cluster hosts in hosts file should be reachable.
+# pve_domain -> str: (Declarative) Domain in which the cluster hosts in hosts file should be reachable and the value set for 'search' in /etc/resolv.conf.
 pve_domain: "example.test"
 # pve_no_log -> bool: Suppress some ansible log output of this role.
 pve_no_log: false
+
+# pve_dns_nameservers -> list[str]: List of nameservers to be configured in /etc/resolv.conf on the hosts.
+pve_dns_nameservers: ["{{ ansible_default_ipv4.gateway }}"]
+
+# pve_dns_resolv_conf_opts -> Optional[list[str]]: List of options to be configured in /etc/resolv.conf on the hosts.
+# Example:
+# pve_dns_resolv_conf_opts:
+#   - "edns0"
+#   - "trust-ad"
+#
+# This would lead to the line "option edns0 trust-ad" in /etc/resolv.conf on the hosts.
 
 # pve_ntp_chrony_sources_file -> FilePath: Path of the Chrony drop-in configuration file
 pve_ntp_chrony_sources_file: "/etc/chrony/sources.d/ansible-configured.sources"

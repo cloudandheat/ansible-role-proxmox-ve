@@ -1,0 +1,5 @@
+search {{ pve_domain }}
+{% for nameserver in pve_dns_nameservers -%}
+nameserver {{ nameserver }}
+{% endfor %}
+{% if pve_dns_resolv_conf_opts is defined %}option{% for opts in pve_dns_resolv_conf_opts %} {{ opts }}{% endfor %}{% endif %}

@@ -95,6 +95,48 @@ The following sections are example references for configuration.
     pve_debian_version: "trixie"
     ```
 
+### Name resolution (DNS)
+
+The name resolution tasks configure:
+* Hostname
+* Entries for each PVE host in `/etc/hosts`
+* DNS servers and other options in `/etc/resolv.conf`
+
+By default, if no tags or tags to be skipped are specified, all name resolution tasks are executed.
+
+Relevant tags:
+
+| Tag | Description |
+| --- | ----------- |
+| `name_resolution` | Execute all name resolution tasks. |
+| `hostname_rename` | Sets the hosts name according to the inventory. |
+| `etc_hosts` | Manage `/etc/hosts`. |
+| `resolv_conf` | Manage `/etc/resolv.conf`. |
+
+Relevant variables:
+
+| Variable | Type | Default | Description |
+| -------- | ---- | ------- | ----------- |
+| `pve_hostname_rename` | String | Undefined | If defined, set the hostname to that value. |
+| `pve_manage_etc_hosts` | Bool | `true` | Whether to manage `/etc/hosts`. |
+| `pve_domain` | String | `example.test` | Domain of the cluster (will be used as DNS search domain). |
+| `pve_dns_nameservers` | List of strings | List with one element with value of `ansible_default_ipv4.gateway`. | List of DNS server addresses. |
+| `pve_dns_resolv_conf_opts` | List of strings | Undefined | List of options to be set. See `man resolv.conf`. |
+
+Example:
+
+```yaml
+pve_domain: mycluster.local
+
+pve_dns_nameservers:
+  - "8.8.8.8"
+  - "9.9.9.9"
+
+pve_dns_resolv_conf_opts:
+  - "edns0"
+  - "trust-ad"
+```
+
 ### NTP sources for Chrony
 
 NTP sources for Chrony are only configured, if `pve_ntp_sources` is defined.

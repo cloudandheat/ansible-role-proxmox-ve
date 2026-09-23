@@ -29,6 +29,15 @@
         mode: "644"
       when: "pve_manage_etc_hosts | bool"
 
+    - name: Manage /etc/resolv.conf
+      tags: resolv_conf
+      ansible.builtin.template:
+        src: "system/name_resolution/resolv.conf.j2"
+        dest: "/etc/resolv.conf"
+        owner: "root"
+        group: "root"
+        mode: "644"
+
 - name: Manage dicts for host(-var)s resolution
   tags:
     - always
