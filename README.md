@@ -102,17 +102,6 @@ The name resolution tasks configure:
 * Entries for each PVE host in `/etc/hosts`
 * DNS servers and other options in `/etc/resolv.conf`
 
-By default, if no tags or tags to be skipped are specified, all name resolution tasks are executed.
-
-Relevant tags:
-
-| Tag | Description |
-| --- | ----------- |
-| `name_resolution` | Execute all name resolution tasks. |
-| `hostname_rename` | Sets the hosts name according to the inventory. |
-| `etc_hosts` | Manage `/etc/hosts`. |
-| `resolv_conf` | Manage `/etc/resolv.conf`. |
-
 Relevant variables:
 
 | Variable | Type | Default | Description |
@@ -305,6 +294,23 @@ pve_rollout_backup:
 
 Per default this is disabled, so it has to be enabled manually.
 
+## Ansible Tags
+
+This role offers two options to configure task execution:
+- **configuration variables** defined in the inventory (or the [defaults](/defaults/main.yml)) define the desired state of the cluster
+- **[tags](https://docs.ansible.com/projects/ansible/latest/playbook_guide/playbooks_tags.html)** specify the tasks to be executed, regardless of the configuration. If you do not want this role to manage certain features of Proxmox, this is the way to configure it.
+
+Currently, we are reworking the tags step by step. We aim for sensible tags allowing for fine-grained execution of the role. The already reworked tags are described in the following. They are designed to have different scopes (e.g. the `ceph` tag includes related tags with smaller scopes like `ceph_upgrade`). 
+
+| Tag | Task description |
+| -- | -- |
+| `ceph` | Executes everything related to Ceph: Ceph cluster setup, upgrades, OSDs, CephFS, etc. |
+| &ensp;&ensp; `ceph_upgrade` | Ceph apt repository and version upgrades |
+| `name_resolution` | Execute all name resolution tasks. |
+| &ensp;&ensp; `hostname_rename` | Sets the hosts names according to the inventory. |
+| &ensp;&ensp; `etc_hosts` | Manage `/etc/hosts`. |
+| &ensp;&ensp; `resolv_conf` | Manage `/etc/resolv.conf`. |
+
 ## Usage
 
 ### Access WebUI
@@ -420,18 +426,6 @@ Vagrant-actions:
     `vagrant destroy -f`
 
 - access webui of the deployed proxmox by entering `https://10.10.111.11:8006` in your local browser. This address is defined in the Vagrantfile and points directly to the first instance. There is a pre-defined test admin user. Select the Realm `Proxmox VE authentication server` with username `adminuser` and password `asdfasdf` to login as this user. If you rolled out the vagrant setup on a remote system, like a VM in the cloud, then you can use an ssh-tunnel like `ssh -L 8006:10.10.111.11:8006 <USER>@<REMOTE_ADDRESS>` and then access the dashboard via `https://127.0.0.1:8006`.
-
-#### Tags
-This role offers two options to configure task execution:
-- **configuration variables** defined in the inventory (or the [defaults](/defaults/main.yml)) define the desired state of the cluster
-- **[tags](https://docs.ansible.com/projects/ansible/latest/playbook_guide/playbooks_tags.html)** specify the tasks to be executed, regardless of the configuration. If you do not want this role to manage certain features of Proxmox, this is the way to configure it. 
-
-Currently, we are reworking the tags step by step. We aim for sensible tags allowing for fine-grained execution of the role. The already reworked tags are described in the following. They are designed to have different scopes (e.g. the `ceph` tag includes related tags with smaller scopes like `ceph_upgrade`). 
-
-| Tag | Task description |
-| -- | -- |
-| ceph | Executes everything related to Ceph: Ceph cluster setup, upgrades, OSDs, CephFS, etc. |
-| &ensp;&ensp; ceph_upgrade | Ceph apt repository and version upgrades |
 
 ### Add Proxmox-Backup-Server for testing
 
