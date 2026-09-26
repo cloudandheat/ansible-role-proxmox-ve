@@ -3,6 +3,8 @@
 - name: Force pvesubscription update
   ansible.builtin.command:
     cmd: "pvesubscription update --force"
+  retries: 3
+  ignore_errors: true # In an offline environment, this task naturally fails
 
 - name: Upgrade the node instance to install new ceph version binaries
   ansible.builtin.apt:
