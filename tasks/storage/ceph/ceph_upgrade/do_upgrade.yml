@@ -36,7 +36,6 @@
 
     - name: Check if ceph-mgrs were updated to the new version
       ansible.builtin.import_tasks: upgrade/validate_ceph_mgr_status.yml
-      retries: 3
 
     - name: Set the noout flag during restarting the OSDs
       ansible.builtin.import_tasks: common/set_noout_flag.yml
