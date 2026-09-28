@@ -21,3 +21,17 @@
     - name: Set_fact _pve_active_ceph_version
       ansible.builtin.set_fact:
         _pve_active_ceph_version: "{{ (_pve_ceph_mon_dump.stdout | from_json | json_query('min_mon_release_name')) if _pve_is_ceph_installed else None }}"
+
+    - name: Run 'ceph osd dump'
+      ansible.builtin.command: "ceph osd dump --format json"
+      changed_when: false
+      register: _pve_ceph_osd_dump
+      when: _pve_is_ceph_installed
+
+    - name: Set_fact _pve_ceph_set_flags
+      ansible.builtin.set_fact:
+        _pve_ceph_set_flags: "{{ (_pve_ceph_osd_dump.stdout | from_json | json_query('flags_set')) if _pve_is_ceph_installed else None }}"
+
+    - name: Debug current OSD flags
+      ansible.builtin.debug:
+        var: _pve_ceph_set_flags

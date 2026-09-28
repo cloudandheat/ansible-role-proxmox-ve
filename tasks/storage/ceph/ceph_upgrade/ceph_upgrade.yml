@@ -22,8 +22,8 @@
       ansible.builtin.set_fact:
         _pve_do_ceph_upgrade: true
       when:
-        - "{{ pve_ceph_enhanced_enabled and _pve_is_ceph_installed }}"
-        - "{{ (_pve_ceph_versions.stdout | from_json | json_query('overall') | length != 1) or (_pve_active_ceph_version != pve_ceph_version) or (_pve_force_ceph_upgrade | default(false)) }}"
+        - "pve_ceph_enhanced_enabled and _pve_is_ceph_installed"
+        - "(_pve_ceph_versions.stdout | from_json | json_query('overall') | length != 1) or (_pve_active_ceph_version != pve_ceph_version) or (_pve_force_ceph_upgrade | default(false))"
 
     - name: Ceph upgrade has been skipped. Show possible reasons.
       ansible.builtin.debug:
@@ -31,7 +31,7 @@
           - "- Ceph shall not be installed (pve_ceph_enhanced_enabled is False)"
           - "- There is no ceph installed (nothing to upgrade)"
           - "- All ceph daemons are on the target version already as specified by pve_ceph_version and Ansible tag 'force_ceph_upgrade' is not used"
-      when: "{{ not _pve_do_ceph_upgrade | default(false) }}"
+      when: "not _pve_do_ceph_upgrade | default(false)"
 
 - name: Do the actual ceph upgrade
   ansible.builtin.import_tasks: do_upgrade.yml

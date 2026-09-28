@@ -832,6 +832,14 @@ pve_ceph_pg_check_retries: 2880
 # pve_ceph_pg_check_delay -> int: How long to wait in seconds before next retry. Using the default values and disregarding the execution time, we wait for a maximum of 8h (2880s * 10).
 pve_ceph_pg_check_delay: 10
 
+# pve_ceph_maintenance_flags -> list[str]: Ceph OSD flags to set during operations that restart OSD daemons, e.g. during a Ceph upgrade.
+pve_ceph_maintenance_flags:
+  - "noout"
+  - "norebalance"
+  - "nobackfill"
+  - "noscrub"
+  - "nodeep-scrub"
+
 ### ZFS
 # pve_zfs_enabled -> bool: (Declarative) Whether to install and configure ZFS packages
 pve_zfs_enabled: false

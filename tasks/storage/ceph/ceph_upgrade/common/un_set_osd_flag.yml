@@ -1,0 +1,5 @@
+---
+- name: "{{ 'Set' if _pve_ceph_flag_op =='set' else 'Unset'}} Ceph OSD flag {{ _pve_ceph_flag }}"
+  ansible.builtin.command:
+    cmd: "ceph osd {{ _pve_ceph_flag_op }} {{ _pve_ceph_flag }}"
+  run_once: true
