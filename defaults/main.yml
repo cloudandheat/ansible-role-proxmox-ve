@@ -696,7 +696,7 @@ pve_ceph_osd_detection: null
 # }]: (Declarative) List of rbd pools to create in ceph_enhanced role.
 pve_ceph_pools: []
 # pve_ceph_pool_destroy -> bool: (Irreversible) If undeclared pools should get destroyed.
-pve_ceph_pool_destroy: false
+pve_ceph_pool_destroy: true
 # pve_ceph_pool_force_destroy -> bool: (Irreversible) If non-empty pools should get destroyed, when destroying pools.
 pve_ceph_pool_force_destroy: false
 # pve_ceph_default_pools -> list[str]: (DO NOT CHANGE!) Important internal default Ceph pool names which should not get deleted/managed.
