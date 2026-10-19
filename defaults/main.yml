@@ -41,6 +41,7 @@ pve_ntp_chrony_sources_file: "/etc/chrony/sources.d/ansible-configured.sources"
 #   - address: "pool.ntp.org"
 #     type: "pool"
 
+
 ### PVEPROXY + SSL/TLS
 # pve_pveproxy_defaults -> Optional dict={
 # <key> -> str="viablae config key" : <value> -> str="viable config value"
@@ -74,10 +75,10 @@ pve_ssh_additional_authorized_keys: null
 # pve_ssh_permit_tty -> bool: (Declarative) If interactive SSH sessions are enabled for root users between hosts.
 pve_ssh_permit_tty: true
 # pve_ssh_strict_include -> bool: (Declarative) Defines the sourcing rules of further SSH configuration files,
-#                                 beside the requiered ones for communication within the cluster 
+#                                 beside the requiered ones for communication within the cluster
 pve_ssh_strict_include: true
 # pve_sshd_strict_include -> bool: (Declarative) Defines the sourcing rules of further SSH Daemon configuration files,
-#                                  beside the requiered ones for communication within the cluster 
+#                                  beside the requiered ones for communication within the cluster
 pve_sshd_strict_include: true
 
 
@@ -387,7 +388,7 @@ pve_cluster_addr1_priority: 50
 #  'name' -> str: (Required) Name of HA group.
 #  'comment' -> str: (default="") Comment on HA group, defaults to "".
 #  'nodes' -> list[str|host]: (default=groups[pve_group]) List of hostnames belonging to this HA group.
-#                             Priority within the HA group can be defined by suffixing ':<priority>' to the hostnames. 
+#                             Priority within the HA group can be defined by suffixing ':<priority>' to the hostnames.
 #                             Defaults to all hosts in pve_group.
 #  'nofailback' -> bool: (default=false) The CRM tries to run services on the node with the highest priority.
 #                         If a node with higher priority comes online, the CRM migrates the service to that node.
@@ -441,6 +442,7 @@ pve_cluster_ha_manager_init: true
 # }: (Declarative) Custom PVE Datacenter options.
 # Example: {"bwlimit": "default=1048576", "crs": "ha=basic,ha-rebalance-on-start=1", "ha": "shutdown_policy=migrate", …}
 pve_datacenter_options: {}
+
 
 ### PVE Storage definitions
 # pve_storages -> dict={
@@ -529,13 +531,14 @@ pve_datacenter_options: {}
 #                                   telling PVE how to access the physical storage. Storage declared here is never created or initialized!
 pve_storages: []
 
+
 ### PVE PBS encryption key preversation
 # pve_pbs_encryption_keys_preserve -> dict={
 # 'enabled' -> bool: save keys of the pbs storage connection.
 # 'host' -> str: host where the file should be saved.
 # 'file' -> str: file path used to save the encryption keys
-
 pve_pbs_encryption_keys_preserve: null
+
 
 ### CEPH & CEPH CLUSTER
 # pve_ceph_enabled -> bool: (Irreversible) If ceph should be installed and configured for PVE. Mutually exclusive with pve_ceph_enhanced_enabled. EXPERIMENTAL
@@ -558,7 +561,6 @@ pve_ceph_ignore_healthwarns: false
 pve_ceph_ignore_healtherrors: false
 # pve_ceph_healthcheck_retries -> int: Number of tries to recheck in 10 second intervals if the ceph has become healthy
 pve_ceph_healthcheck_retries: 5
-
 # pve_ceph_network -> str: (Irreversible) Ceph public(/cluster) network in CIDR notation.
 # Default: IP and subnetz this is used by Ansible. Parsing is expressiv, this is why this expression is hard to read.
 # NOTE: Aliased by "ceph_public_ip: <host_ip_address>/<netmask>" host variable.
@@ -642,7 +644,7 @@ pve_ceph_wipe_destroyed_osds: false
 # 'host' -> str|host: Host on which LUKS keys should be saved. (E.g. "localhost" for ansible control node.)
 # }]: (Declarative) Define if and where OSD metadata should be saved to. (Including OSD LVM encryption keys.)
 pve_osd_luks_key_preserve: null
-# pve_ceph_clear_all_osds -> bool: If set to true, in case of a fresh installation, all devices marked to be a Ceph OSD, will be wiped, 
+# pve_ceph_clear_all_osds -> bool: If set to true, in case of a fresh installation, all devices marked to be a Ceph OSD, will be wiped,
 #                                  to avoid conflicts in case these disks were previously already an OSD in another Ceph.
 #                                  If ceph is already installed on the node, this flag will be ignored and only print a warning.
 #                                                   NOTE: Requires pve_ceph_enhanced_enabled to be set to true.
@@ -855,7 +857,7 @@ pve_filesystems: []
 #pve_backup_jobs: -> list[dict{
 # 'all' -> bool: (Required if not vmid) Backup all known guest systems on this host.
 # 'bwlimit' -> integer: Limit I/O bandwidth (in KiB/s).´
-# 'comment' -> str: Description for the Job 
+# 'comment' -> str: Description for the Job
 # 'compress' -> str=Selection('0','1','gzip','lzo','zstd'): Compress dump file, select algorithm
 # 'dow' -> str= selection('mon','tue','wed','thu','fri','sat','sun'): Day of week selection (Requires)
 # 'dumpdir' -> str: Store resulting files to specified directory.
@@ -863,15 +865,15 @@ pve_filesystems: []
 # 'exclude' -> str: Exclude specified guest systems (assumes --all)
 # 'exclude-path' -> str: Exclude certain files/directories (shell globs). Paths starting with '/' are anchored to the container's root,
 #                        other paths match relative to each subdirectory.
-# 'fleecing' -> dict{ 
+# 'fleecing' -> dict{
 #    enabled -> bool: enables fleecing for the job,
-#    storage -> str: <storage ID> used for capturing fleece buffer 
-#    }: Options for backup fleecing (VM only) 
+#    storage -> str: <storage ID> used for capturing fleece buffer
+#    }: Options for backup fleecing (VM only)
 # 'id' -> str: Job ID (will be autogenerated, if not set).
-# 'ionice' -> int=range(0,8): Set IO priority when using the BFQ scheduler. For snapshot and suspend mode backups of VMs, 
+# 'ionice' -> int=range(0,8): Set IO priority when using the BFQ scheduler. For snapshot and suspend mode backups of VMs,
 #                             this only affects the compressor. A value of 8 means the idle priority is used,
 #                             otherwise the best-effort priority is used with the specified value.
-# 'lockwait' -> int=range(0,N): Maximal time to wait for the global lock (minutes). 
+# 'lockwait' -> int=range(0,N): Maximal time to wait for the global lock (minutes).
 # 'mailto' -> str: Deprecated - Use notification targets/matchers instead. Comma-separated list of email addresses or users that should
 #                  receive email notifications.
 # 'maxfiles' -> int=range(0,N): Deprecated: use 'prune-backups' instead. Maximal number of backup files per guest system.
@@ -880,14 +882,14 @@ pve_filesystems: []
 #                          which will be replaced by their values. Currently supported are {{cluster}}, {{guestname}}, {{node}},
 #                          and {{vmid}}, but more might be added in the future. Needs to be a single line,
 #                          newline and backslash need to be escaped as '\n' and '\\' respectively. (Requires option(s): storage)
-# 'notification-mode' -> str=Selection('auto','legacy-sendmail','notification-system'): Determine which notification system to use. 
+# 'notification-mode' -> str=Selection('auto','legacy-sendmail','notification-system'): Determine which notification system to use.
 #                            If set to 'legacy-sendmail', vzdump will consider the mailto/mailnotification parameters and send emails to the
-#                            specified address(es) via the 'sendmail' command. If set to 'notification-system', a notification 
-#                            will be sent via PVE's notification system, and the mailto and mailnotification will be ignored. 
+#                            specified address(es) via the 'sendmail' command. If set to 'notification-system', a notification
+#                            will be sent via PVE's notification system, and the mailto and mailnotification will be ignored.
 #                            If set to 'auto' (default setting), an email will be sent if mailto is set, and the notification
 #                            system will be used if not. (defaults to = auto)
 # 'pbs-change-detection-mode' -> str=Selection('data','legacy','metadata'): PBS mode used to detect file changes and switch encoding
-#                                                                           format for container backups.                               
+#                                                                           format for container backups.
 # 'performance' -> dict{
 #     max-worker -> int: number of workers
 #     pbs-entries-max -> int: can avoid failing backups due to a high amount of files in folders where a folder exclusion is not possible.
@@ -897,10 +899,10 @@ pve_filesystems: []
 # 'protected' -> bool: If true, mark backup(s) as protected. (Requires option(s): storage)
 # 'prune-backups' -> dict{
 #   keep-all -> bool: (default)
-#   keep-daily -> int: 
+#   keep-daily -> int:
 #   keep-hourly -> int:
 #   keep-last -> int:
-#   keep-monthly -> int: 
+#   keep-monthly -> int:
 #   keep-weekly -> int:
 #   keep-yearly -> int:
 # }: Use these retention options instead of those from the storage configuration.
@@ -913,7 +915,7 @@ pve_filesystems: []
 # 'stdexcludes' -> bool: Exclude temporary files and logs. (default=1)
 # 'stop' -> bool: Stop running backup jobs on this host. (default=0)
 # 'stopwait' -> int=range(0,N): Maximal time to wait until a guest system is stopped (minutes).
-# 'storage' -> string: <storage ID> Store resulting file to this storage. 
+# 'storage' -> string: <storage ID> Store resulting file to this storage.
 # 'tmpdir' -> string: Store temporary files to specified directory.
 # 'vmid' -> int=range(100,N): The ID of the guest system you want to backup.
 # 'zstd' -> int: Zstd threads. N=0 uses half of the available cores, if N is set to a value bigger than 0, N is used as thread count. (default=1)
