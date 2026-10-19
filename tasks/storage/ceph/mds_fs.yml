@@ -367,7 +367,7 @@
           tags: ceph_fs_create
           block:
             - name: Create CephFS filesystem
-              ansible.builtin.command: "pveceph fs create {{ item | dict2args(reject_keys=['auth', 'pools', 'meta_pool']) }}"
+              ansible.builtin.command: "pveceph fs create {{ item | dict2args(reject_keys=['auth', 'pools', 'meta_pool', 'subvolumegroups']) }}"
               loop: "{{ pve_ceph_fs }}"
               changed_when: true
               when: "item.name not in (_ceph_fs_ls | map(attribute='name'))"
@@ -667,7 +667,7 @@
               loop: "{{ _ext_ceph_fs_svg_ls_raws.results }}"
 
             - name: Remove undeclared CephFS subvolumegroups
-              ansible.builtin.command: "ceph fs subvolumegroup rm {{ item.0.key }} {{ item.1 }} --force"
+              ansible.builtin.command: "ceph fs subvolumegroup rm {{ item.0.key }} {{ item.1 }}"
               loop: "{{ _ext_ceph_fs_svg_existing | dict2items | subelements('value') }}"
               when:
                 - "pve_ceph_fs_subvolumegroup_destroy"
