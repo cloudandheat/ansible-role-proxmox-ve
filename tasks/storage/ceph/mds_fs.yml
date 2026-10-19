@@ -649,3 +649,33 @@
               delegate_to: "{{ cephfs.auth.host | default('localhost', true) }}"
               loop: "{{ _ext_ceph_fs_auth_raws.results }}"
               when: "cephfs.auth.host | default(false, true) is not false"
+
+        - name: Manage CephFS subvolumegroups
+          tags: ceph_fs_subvolumegroup
+          block:
+            - name: Query existing CephFS subvolumegroups
+              ansible.builtin.command: "ceph fs subvolumegroup ls {{ item.name }} --format json"
+              register: _ext_ceph_fs_svg_ls_raws
+              loop: "{{ pve_ceph_fs }}"
+              changed_when: false
+
+            - name: Extract existing CephFS subvolumegroups
+              ansible.builtin.set_fact:
+                _ext_ceph_fs_svg_existing: >-
+                  {{ _ext_ceph_fs_svg_existing | default({})
+                     | combine({item.item.name: (item.stdout | from_json | map(attribute='name') | list)}) }}
+              loop: "{{ _ext_ceph_fs_svg_ls_raws.results }}"
+
+            - name: Remove undeclared CephFS subvolumegroups
+              ansible.builtin.command: "ceph fs subvolumegroup rm {{ item.0.key }} {{ item.1 }} --force"
+              loop: "{{ _ext_ceph_fs_svg_existing | dict2items | subelements('value') }}"
+              when:
+                - "pve_ceph_fs_subvolumegroup_destroy"
+                - "item.1 not in (pve_ceph_fs | selectattr('name', '==', item.0.key) | map(attribute='subvolumegroups') | first | default([], true))"
+              changed_when: true
+
+            - name: Create CephFS subvolumegroups
+              ansible.builtin.command: "ceph fs subvolumegroup create {{ item.0.name }} {{ item.1 }}"
+              loop: "{{ pve_ceph_fs | selectattr('subvolumegroups', 'defined') | subelements('subvolumegroups') }}"
+              when: "item.1 not in _ext_ceph_fs_svg_existing[item.0.name]"
+              changed_when: true

@@ -752,9 +752,15 @@ pve_rbd_journal_migration: false
 #    'host' -> Optional[str|host]: On which host to store the credentials.
 #    'file' -> str|FilePath: (default='/tmp/cephfs_<name>.keyring') Where to store the credential file.
 #  }: Generate additional external access authentication user and keys for the CephFS fs.
+#  'subvolumegroups' -> list[str]: (Optional) List of subvolumegroups to create (e.g., ['csi']).
 # } | str: Names of CephFS filesystems to create.
 # ] | dict={<name>: {…}, …}: (Declarative) Which CephFS to create.
 pve_ceph_fs: []
+
+# pve_ceph_fs_subvolumegroup_destroy -> bool: (Irreversible) Whether undeclared subvolumegroups should be forcibly removed.
+# WARNING: This will delete ALL subvolumes (PVs) and data inside undeclared subvolumegroups!
+pve_ceph_fs_subvolumegroup_destroy: false
+
 
 ### Ceph CRUSH customization
 # pve_ceph_backup_crushmap -> bool: If crush maps should get backed up to /etc/pve/ceph.
